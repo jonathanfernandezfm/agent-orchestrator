@@ -15,6 +15,7 @@ export type ThemeStyle =
 
 export const themeStorageKey = "ao.theme";
 export const themeStyleStorageKey = "ao.theme-style";
+export const backgroundImageStorageKey = "ao.background-image";
 
 function getLocalStorage() {
 	if (typeof window === "undefined" || !window.localStorage) return null;
@@ -77,6 +78,27 @@ export function applyDocumentThemeStyle(style: ThemeStyle): void {
 		delete document.documentElement.dataset.styleTheme;
 	} else {
 		document.documentElement.dataset.styleTheme = style;
+	}
+}
+
+/** A downscaled image data URL painted behind the home page and empty chats. */
+export function readStoredBackgroundImage(): string | null {
+	try {
+		return getLocalStorage()?.getItem(backgroundImageStorageKey) || null;
+	} catch {
+		return null;
+	}
+}
+
+export function applyDocumentBackgroundImage(dataUrl: string | null): void {
+	if (typeof document === "undefined") return;
+	const root = document.documentElement;
+	if (dataUrl) {
+		root.dataset.backdrop = "image";
+		root.style.setProperty("--app-backdrop-image", `url("${dataUrl}")`);
+	} else {
+		delete root.dataset.backdrop;
+		root.style.removeProperty("--app-backdrop-image");
 	}
 }
 

@@ -199,7 +199,7 @@ export function HomePage() {
 	if (projects.length === 0) return <BoardWelcome />;
 
 	return (
-		<div className="flex min-h-full items-center justify-center px-6 py-16">
+		<div className="app-backdrop flex min-h-full items-center justify-center px-6 py-16">
 			<div className="w-full max-w-[640px]">
 				<div className="space-y-6">
 					<section className="space-y-3 px-3">

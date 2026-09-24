@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ThemePreference, ThemeStyle } from "../../lib/theme";
 import type { AppLocale } from "../../i18n";
@@ -11,6 +11,7 @@ import { useTerminalShellStore } from "../../stores/terminal-shell-store";
 import { SettingsOptionMenu, type SettingsOption } from "./SettingsOptionMenu";
 import { SettingsInputRow, SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
+import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
 import { cn } from "../../lib/utils";
 import { useSettings, useUpdateCloudOffering, useUpdateSessionInterface } from "../../hooks/useSettings";
@@ -121,6 +122,75 @@ function TerminalShellRows() {
 	);
 }
 
+const BACKGROUND_IMAGE_MAX_EDGE = 2560;
+
+/** Downscale so the data URL stays well inside the localStorage quota. */
+async function readBackgroundImage(file: File): Promise<string> {
+	const bitmap = await createImageBitmap(file);
+	const scale = Math.min(1, BACKGROUND_IMAGE_MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+	const canvas = document.createElement("canvas");
+	canvas.width = Math.round(bitmap.width * scale);
+	canvas.height = Math.round(bitmap.height * scale);
+	canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+	bitmap.close();
+	return canvas.toDataURL("image/jpeg", 0.85);
+}
+
+function BackgroundImageRow() {
+	const { t } = useTranslation();
+	const backgroundImage = useUiStore((state) => state.backgroundImage);
+	const setBackgroundImage = useUiStore((state) => state.setBackgroundImage);
+	const inputRef = useRef<HTMLInputElement>(null);
+	const [saveError, setSaveError] = useState(false);
+	const choose = async (file: File | undefined) => {
+		if (!file) return;
+		try {
+			setBackgroundImage(await readBackgroundImage(file));
+			setSaveError(false);
+		} catch {
+			setSaveError(true);
+		}
+	};
+	return (
+		<>
+			<SettingsRow label={t("settings.backgroundImage")}>
+				<div className="flex items-center gap-1.5">
+					{backgroundImage ? (
+						<>
+							<span
+								aria-hidden="true"
+								className="h-6 w-9 rounded-sm border border-border bg-cover bg-center"
+								style={{ backgroundImage: `url("${backgroundImage}")` }}
+							/>
+							<Button type="button" variant="outline" onClick={() => setBackgroundImage(null)}>
+								{t("settings.backgroundImage.remove")}
+							</Button>
+						</>
+					) : null}
+					<Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
+						{t("settings.backgroundImage.choose")}
+					</Button>
+					<input
+						ref={inputRef}
+						type="file"
+						accept="image/*"
+						hidden
+						onChange={(event) => {
+							void choose(event.target.files?.[0]);
+							event.target.value = "";
+						}}
+					/>
+				</div>
+			</SettingsRow>
+			{saveError ? (
+				<p role="alert" className="px-3 text-caption leading-4 text-error">
+					{t("settings.backgroundImage.saveFailed")}
+				</p>
+			) : null}
+		</>
+	);
+}
+
 const COLOR_THEME_OPTIONS = [
 	{ value: "orchestrate", label: "Orchestrate" },
 	{ value: "orchestrate-deep", label: "Orchestrate Deep" },
@@ -196,6 +266,7 @@ export function GeneralSettingsSection({
 						/>
 					</div>
 				</SettingsRow>
+				<BackgroundImageRow />
 				<SettingsRow label={t("settings.language")}>
 					<SettingsOptionMenu
 						aria-label={t("settings.language")}

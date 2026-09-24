@@ -1,11 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	applyDocumentBackgroundImage,
 	applyDocumentTheme,
 	applyDocumentThemeStyle,
 	readStoredThemeStyle,
 	runThemeTransition,
 	themeStyleStorageKey,
 } from "./theme";
+
+describe("background image", () => {
+	it("sets and clears the backdrop hook and image variable together", () => {
+		const root = document.documentElement;
+		applyDocumentBackgroundImage("data:image/jpeg;base64,AAAA");
+		expect(root.dataset.backdrop).toBe("image");
+		expect(root.style.getPropertyValue("--app-backdrop-image")).toBe('url("data:image/jpeg;base64,AAAA")');
+
+		applyDocumentBackgroundImage(null);
+		expect(root.dataset.backdrop).toBeUndefined();
+		expect(root.style.getPropertyValue("--app-backdrop-image")).toBe("");
+	});
+});
 
 describe("readStoredThemeStyle", () => {
 	afterEach(() => localStorage.removeItem(themeStyleStorageKey));

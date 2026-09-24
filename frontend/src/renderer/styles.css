@@ -5568,3 +5568,32 @@ html[data-native-browser-composition="true"] .browser-popout-frame {
 :root[data-style-theme="orchestrate-deep"]:not([data-theme="light"]) .center-panel-surface {
 	box-shadow: 0 24px 60px -28px oklch(0.06 0.03 276 / 80%);
 }
+
+/* Background image behind the home page and empty chats. The image is shown
+ * through a fine halftone screen and fades into the surface toward the bottom,
+ * so it adapts to every theme and keeps the centered content legible. */
+:root[data-backdrop] :is(.app-backdrop, [data-composer-placement="center"]) {
+	position: relative;
+	isolation: isolate;
+}
+
+:root[data-backdrop] :is(.app-backdrop, [data-composer-placement="center"])::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background:
+		radial-gradient(circle, color-mix(in oklch, var(--color-bg-primary) 60%, transparent) 0.75px, transparent 1.2px) 0 0 / 3px 3px,
+		radial-gradient(ellipse 55% 45% at 50% 55%, color-mix(in oklch, var(--color-bg-primary) 72%, transparent), transparent 100%),
+		/* Two stops: single-stop gradients are invalid in Electron's Chromium 130
+		   and would void the whole declaration, image included. */
+		linear-gradient(color-mix(in oklch, var(--color-bg-primary) 30%, transparent) 0 0),
+		var(--app-backdrop-image) center / cover no-repeat;
+	filter: saturate(0.85);
+	mask-image: linear-gradient(to bottom, #000 25%, rgb(0 0 0 / 45%) 62%, transparent 92%);
+}
+
+:root[data-backdrop] [data-composer-placement="center"] .chat-composer-fade {
+	display: none;
+}

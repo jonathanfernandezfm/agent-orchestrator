@@ -3,8 +3,11 @@ import { aoBridge } from "../lib/bridge";
 import type { TerminalTarget } from "../types/terminal";
 import type { FilesSource } from "../hooks/useSessionWorkspaceFiles";
 import {
+	applyDocumentBackgroundImage,
 	applyDocumentTheme,
 	applyDocumentThemeStyle,
+	backgroundImageStorageKey,
+	readStoredBackgroundImage,
 	readStoredThemePreference,
 	readStoredThemeStyle,
 	resolveTheme,
@@ -87,6 +90,8 @@ export type UiState = {
 	resolvedTheme: Theme;
 	/** Named color style theme (e.g. "catppuccin", "nord") — independent of light/dark mode. */
 	themeStyle: ThemeStyle;
+	/** Image data URL painted behind the home page and empty chats; null when unset. */
+	backgroundImage: string | null;
 	/** When true, developer-only release controls are available. Default off. */
 	developerMode: boolean;
 	/** Experimental: connect to AO daemons on other machines. Default off. */
@@ -136,6 +141,8 @@ export type UiState = {
 	setWorkbenchTab: (tab: WorkbenchTab) => void;
 	setThemePreference: (theme: ThemePreference) => void;
 	setThemeStyle: (style: ThemeStyle) => void;
+	/** Throws when storage rejects the image (e.g. quota exceeded). */
+	setBackgroundImage: (dataUrl: string | null) => void;
 	setDeveloperMode: (enabled: boolean) => void;
 	setRemoteHosts: (enabled: boolean) => void;
 	setTerminalCopyOnSelect: (enabled: boolean) => void;
@@ -244,6 +251,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	themePreference: initialThemePreference,
 	resolvedTheme: resolveTheme(initialThemePreference),
 	themeStyle: initialThemeStyle,
+	backgroundImage: readStoredBackgroundImage(),
 	developerMode: initialDeveloperModeValue,
 	remoteHosts: initialRemoteHosts(),
 	terminalCopyOnSelect: initialTerminalCopyOnSelect(),
@@ -277,6 +285,13 @@ export const useUiStore = create<UiState>((set, get) => ({
 			applyDocumentThemeStyle(themeStyle);
 			set({ themeStyle });
 		});
+	},
+	setBackgroundImage: (backgroundImage) => {
+		const storage = getLocalStorage();
+		if (backgroundImage) storage?.setItem(backgroundImageStorageKey, backgroundImage);
+		else storage?.removeItem(backgroundImageStorageKey);
+		applyDocumentBackgroundImage(backgroundImage);
+		set({ backgroundImage });
 	},
 	setDeveloperMode: (developerMode) => {
 		getLocalStorage()?.setItem(developerModeStorageKey, String(developerMode));
