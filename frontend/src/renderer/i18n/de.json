@@ -1771,6 +1771,8 @@
 	"settings.browserProfiles": "Browser",
 	"settings.downloads": "Downloads",
 	"settings.browserProfiles.description": "Das temporäre Profil ist pro Worker isoliert und wird verworfen. Benannte Profile behalten Anmeldungen und Website-Zustände und werden nur von Workern geteilt, die ausdrücklich an dasselbe Profil gebunden sind.",
+	"settings.browserProfiles.default": "Standardprofil",
+	"settings.browserProfiles.defaultDescription": "Wird von neuen Workern verwendet, die kein Profil ausgewählt haben.",
 	"settings.browserProfiles.create": "Profil erstellen",
 	"settings.browserProfiles.name": "Profilname",
 	"settings.browserProfiles.namePlaceholder": "Arbeit",

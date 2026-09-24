@@ -120,7 +120,17 @@ function parseRegistry(raw: unknown): BrowserProfileRegistry {
 		bindings[sessionId] = { profileId, updatedAt: value.updatedAt };
 	}
 
-	return { version: BROWSER_PROFILE_REGISTRY_VERSION, profiles, bindings };
+	const defaultProfileId = raw.defaultProfileId;
+	if (defaultProfileId !== undefined && (typeof defaultProfileId !== "string" || !profileIds.has(defaultProfileId))) {
+		throw invalidRegistry("The browser profile registry has a default that is not a known profile.");
+	}
+
+	return {
+		version: BROWSER_PROFILE_REGISTRY_VERSION,
+		profiles,
+		bindings,
+		...(defaultProfileId !== undefined ? { defaultProfileId } : {}),
+	};
 }
 
 function cloneRegistry(registry: BrowserProfileRegistry): BrowserProfileRegistry {
@@ -130,6 +140,7 @@ function cloneRegistry(registry: BrowserProfileRegistry): BrowserProfileRegistry
 		bindings: Object.fromEntries(
 			Object.entries(registry.bindings).map(([sessionId, binding]) => [sessionId, { ...binding }]),
 		),
+		...(registry.defaultProfileId ? { defaultProfileId: registry.defaultProfileId } : {}),
 	};
 }
 
@@ -186,6 +197,7 @@ export class BrowserProfileStore {
 	private listState(): BrowserProfileListState {
 		return {
 			profiles: this.loadError ? [] : this.registry.profiles.map((profile) => ({ ...profile })),
+			...(this.defaultProfileId ? { defaultProfileId: this.defaultProfileId } : {}),
 			...(this.loadError ? { error: { ...this.loadError } } : {}),
 		};
 	}
@@ -204,9 +216,14 @@ export class BrowserProfileStore {
 		return profile ? { ...profile } : undefined;
 	}
 
+	get defaultProfileId(): string | undefined {
+		return this.loadError ? undefined : this.registry.defaultProfileId;
+	}
+
+	/** The worker's explicit binding, else the default profile. */
 	getSessionProfileId(sessionId: string): string | undefined {
 		if (this.loadError) return undefined;
-		return this.registry.bindings[sessionId]?.profileId;
+		return this.registry.bindings[sessionId]?.profileId ?? this.registry.defaultProfileId;
 	}
 
 	isProfileOperationInProgress(profileId: string): boolean {
@@ -321,6 +338,20 @@ export class BrowserProfileStore {
 		});
 	}
 
+	async setDefaultProfile(profileId: string | null): Promise<void> {
+		if (profileId !== null && !isBrowserProfileId(profileId)) {
+			throw new BrowserProfileStoreError("INVALID_ARGUMENT", "Profile ID is invalid.");
+		}
+		return this.enqueueMutation((current) => {
+			if (profileId !== null && !current.profiles.some((profile) => profile.id === profileId)) {
+				throw new BrowserProfileStoreError("BROWSER_PROFILE_NOT_FOUND", "Browser profile was not found.");
+			}
+			if (profileId === null) delete current.defaultProfileId;
+			else current.defaultProfileId = profileId;
+			return { registry: current, result: undefined };
+		});
+	}
+
 	async deleteProfile(profileId: string): Promise<void> {
 		if (!isBrowserProfileId(profileId)) {
 			throw new BrowserProfileStoreError("INVALID_ARGUMENT", "Profile ID is invalid.");
@@ -332,6 +363,7 @@ export class BrowserProfileStore {
 			const bindings = Object.fromEntries(
 				Object.entries(current.bindings).filter(([, binding]) => binding.profileId !== profileId),
 			);
+			if (current.defaultProfileId === profileId) delete current.defaultProfileId;
 			return {
 				registry: {
 					...current,

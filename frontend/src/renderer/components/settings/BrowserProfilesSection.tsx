@@ -7,6 +7,7 @@ import { cn } from "../../lib/utils";
 import { ConfirmDialog } from "../ConfirmDialog";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { SettingsRow } from "./SettingsRow";
 import { SettingsSection } from "./SettingsSection";
 import { BrowserImportDialog } from "./BrowserImportDialog";
@@ -14,11 +15,14 @@ import { BrowserImportDialog } from "./BrowserImportDialog";
 type ProfileBridge = AoBridge["browserProfiles"];
 type Profile = Awaited<ReturnType<ProfileBridge["list"]>>["profiles"][number];
 type DestructiveAction = { kind: "clear" | "delete"; profile: Profile };
+// Radix Select rejects "" as an item value, so Temporary needs a sentinel.
+const TEMPORARY_VALUE = "temporary";
 
 export function BrowserProfilesSection({ titleHidden }: { titleHidden?: boolean }) {
 	const { t } = useTranslation();
 	const bridge = (aoBridge as Partial<AoBridge>).browserProfiles as ProfileBridge | undefined;
 	const [profiles, setProfiles] = useState<Awaited<ReturnType<ProfileBridge["list"]>>["profiles"]>([]);
+	const [defaultProfileId, setDefaultProfileId] = useState<string | undefined>();
 	const [loading, setLoading] = useState(Boolean(bridge));
 	const [error, setError] = useState("");
 	const [name, setName] = useState("");
@@ -34,6 +38,7 @@ export function BrowserProfilesSection({ titleHidden }: { titleHidden?: boolean 
 		try {
 			const result = await bridge.list();
 			setProfiles(result.profiles);
+			setDefaultProfileId(result.defaultProfileId);
 			setError(result.error?.message ?? "");
 		} catch (reason) {
 			setError(reason instanceof Error ? reason.message : t("settings.browserProfiles.loadFailed"));
@@ -55,6 +60,18 @@ export function BrowserProfilesSection({ titleHidden }: { titleHidden?: boolean 
 			const created = await bridge.create(name);
 			setProfiles((current) => [...current, created]);
 			setName("");
+			setError("");
+		} catch (reason) {
+			setError(reason instanceof Error ? reason.message : t("settings.browserProfiles.saveFailed"));
+		}
+	};
+
+	const changeDefault = async (value: string) => {
+		if (!bridge) return;
+		const id = value === TEMPORARY_VALUE ? null : value;
+		try {
+			await bridge.setDefault(id);
+			setDefaultProfileId(id ?? undefined);
 			setError("");
 		} catch (reason) {
 			setError(reason instanceof Error ? reason.message : t("settings.browserProfiles.saveFailed"));
@@ -89,6 +106,7 @@ export function BrowserProfilesSection({ titleHidden }: { titleHidden?: boolean 
 			} else {
 				await bridge.delete(pendingAction.profile.id);
 				setProfiles((current) => current.filter((profile) => profile.id !== pendingAction.profile.id));
+				if (defaultProfileId === pendingAction.profile.id) setDefaultProfileId(undefined);
 			}
 			setError("");
 			setPendingAction(null);
@@ -123,6 +141,26 @@ export function BrowserProfilesSection({ titleHidden }: { titleHidden?: boolean 
 					<Import aria-hidden="true" className="size-icon-base" />
 					{t("settings.browserImport.action")}
 				</Button>
+			</SettingsRow>
+			<SettingsRow
+				label={t("settings.browserProfiles.default")}
+				description={t("settings.browserProfiles.defaultDescription")}
+			>
+				<Select
+					disabled={!bridge || loading}
+					onValueChange={(value) => void changeDefault(value)}
+					value={defaultProfileId ?? TEMPORARY_VALUE}
+				>
+					<SelectTrigger aria-label={t("settings.browserProfiles.default")} className="h-control-md w-36">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent align="end">
+						<SelectItem value={TEMPORARY_VALUE}>{t("browser.profile.temporary")}</SelectItem>
+						{profiles.map((profile) => (
+							<SelectItem key={profile.id} value={profile.id}>{profile.name}</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</SettingsRow>
 			<SettingsRow label={t("settings.browserProfiles.create")}>
 				<form

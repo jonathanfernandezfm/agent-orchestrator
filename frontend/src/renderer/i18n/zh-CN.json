@@ -1783,6 +1783,8 @@
 	"settings.browserProfiles": "浏览器",
 	"settings.downloads": "下载",
 	"settings.browserProfiles.description": "临时配置文件按工作线程隔离并会被丢弃。命名配置文件会保留登录状态和站点数据，只有明确绑定到同一配置文件的工作线程才会共享这些数据。",
+	"settings.browserProfiles.default": "默认配置文件",
+	"settings.browserProfiles.defaultDescription": "供尚未选择配置文件的新工作进程使用。",
 	"settings.browserProfiles.create": "创建配置文件",
 	"settings.browserProfiles.name": "配置文件名称",
 	"settings.browserProfiles.namePlaceholder": "工作",

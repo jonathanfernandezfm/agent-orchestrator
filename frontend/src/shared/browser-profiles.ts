@@ -32,6 +32,8 @@ export type BrowserProfileRegistry = {
 	version: typeof BROWSER_PROFILE_REGISTRY_VERSION;
 	profiles: BrowserProfile[];
 	bindings: Record<string, BrowserProfileBinding>;
+	/** Profile used by workers with no explicit binding; absent means Temporary. */
+	defaultProfileId?: BrowserProfileId;
 };
 
 export type BrowserProfileStoreError = {
@@ -41,6 +43,7 @@ export type BrowserProfileStoreError = {
 
 export type BrowserProfileListState = {
 	profiles: BrowserProfile[];
+	defaultProfileId?: BrowserProfileId;
 	error?: BrowserProfileStoreError;
 };
 

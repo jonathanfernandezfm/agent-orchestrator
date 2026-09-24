@@ -124,7 +124,11 @@ function trustedShellSender(event: IpcMainInvokeEvent, shellWebContents: WebCont
 }
 
 function listStateWithStoreError(store: BrowserProfileStore): BrowserProfileListState {
-	return { profiles: store.profiles, ...(store.error ? { error: store.error } : {}) };
+	return {
+		profiles: store.profiles,
+		...(store.defaultProfileId ? { defaultProfileId: store.defaultProfileId } : {}),
+		...(store.error ? { error: store.error } : {}),
+	};
 }
 
 function profileLabel(profile: BrowserProfile): string {
@@ -157,6 +161,11 @@ export function registerBrowserProfileIpc(options: BrowserProfileIpcOptions): Br
 		const profile = await options.store.renameProfile(profileIdFromInput(input.id), input.name);
 		options.host.refreshProfileState?.(profile.id);
 		return profile;
+	});
+	handle("browserProfiles:setDefault", async (event, input: unknown) => {
+		if (!trustedShellSender(event, options.shellWebContents)) throw invalid("Untrusted browser profile sender.");
+		if (!isRecord(input)) throw invalid("Browser profile input is invalid.");
+		return options.store.setDefaultProfile(input.id === null ? null : profileIdFromInput(input.id));
 	});
 	handle("browserProfiles:clear", async (event, input: unknown) => {
 		if (!trustedShellSender(event, options.shellWebContents)) throw invalid("Untrusted browser profile sender.");

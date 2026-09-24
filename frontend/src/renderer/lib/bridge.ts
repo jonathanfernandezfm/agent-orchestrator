@@ -206,6 +206,7 @@ export const aoBridge: AoBridge =
 				const now = new Date().toISOString();
 				return { id, name, createdAt: now, updatedAt: now };
 			},
+			setDefault: async () => undefined,
 			clear: async () => undefined,
 			delete: async () => undefined,
 			discoverImportSources: async () => ({ sources: [] }),

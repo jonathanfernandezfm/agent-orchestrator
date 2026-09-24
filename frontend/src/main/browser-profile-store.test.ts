@@ -67,6 +67,27 @@ describe("BrowserProfileStore", () => {
 		expect(reloaded.getSessionProfileId("worker-1")).toBe(personal.id);
 	});
 
+	it("falls back to the persisted default profile for unbound workers", async () => {
+		const stateDir = await makeStateDir();
+		const store = new BrowserProfileStore({ stateDir });
+		const work = await store.createProfile("Work");
+		const personal = await store.createProfile("Personal");
+		await store.bindSession("bound", personal.id);
+
+		expect(store.getSessionProfileId("unbound")).toBeUndefined();
+		await store.setDefaultProfile(work.id);
+		expect(store.getSessionProfileId("unbound")).toBe(work.id);
+		expect(store.getSessionProfileId("bound")).toBe(personal.id);
+
+		const reloaded = new BrowserProfileStore({ stateDir });
+		expect((await reloaded.load()).defaultProfileId).toBe(work.id);
+		expect(reloaded.getSessionProfileId("unbound")).toBe(work.id);
+
+		await reloaded.deleteProfile(work.id);
+		expect(reloaded.defaultProfileId).toBeUndefined();
+		expect(reloaded.getSessionProfileId("unbound")).toBeUndefined();
+	});
+
 	it("serializes concurrent mutations without losing profiles", async () => {
 		const store = new BrowserProfileStore({ stateDir: await makeStateDir() });
 

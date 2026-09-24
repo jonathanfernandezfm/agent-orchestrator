@@ -1799,6 +1799,8 @@
 	"settings.browserProfiles": "Navegador",
 	"settings.downloads": "Downloads",
 	"settings.browserProfiles.description": "O perfil temporário é isolado por trabalhador e descartado. Perfis nomeados mantêm logins e o estado dos sites, compartilhados apenas por trabalhadores explicitamente vinculados ao mesmo perfil.",
+	"settings.browserProfiles.default": "Perfil padrão",
+	"settings.browserProfiles.defaultDescription": "Usado por novos workers que não escolheram um perfil.",
 	"settings.browserProfiles.create": "Criar perfil",
 	"settings.browserProfiles.name": "Nome do perfil",
 	"settings.browserProfiles.namePlaceholder": "Trabalho",
