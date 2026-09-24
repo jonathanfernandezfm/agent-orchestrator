@@ -5563,3 +5563,8 @@ html[data-native-browser-composition="true"] .browser-popout-frame {
 		animation: none;
 	}
 }
+
+/* Orchestrate Deep: lift the center panel off the dark blue shell. */
+:root[data-style-theme="orchestrate-deep"]:not([data-theme="light"]) .center-panel-surface {
+	box-shadow: 0 24px 60px -28px oklch(0.06 0.03 276 / 80%);
+}

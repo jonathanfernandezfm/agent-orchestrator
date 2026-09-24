@@ -846,6 +846,40 @@
 	--color-text-terminal-dim: var(--muted-foreground);
 }
 
+/* ── Orchestrate Deep ──
+   Orchestrate dark pulled toward indigo, with the layer steps widened
+   (sidebar -0.040 · card +0.056 · popover +0.098 ΔL) so surfaces read as
+   stacked planes, on a dark blue shell. Light mode is plain Orchestrate light. */
+:root[data-style-theme="orchestrate-deep"]:not([data-theme="light"]) {
+	--background:                 oklch(0.172 0.013 274);
+	--foreground:                 oklch(0.975 0.004 274);
+	--card:                       oklch(0.228 0.017 274);
+	--card-foreground:            oklch(0.975 0.004 274);
+	--popover:                    oklch(0.27 0.019 274);
+	--popover-foreground:         oklch(0.975 0.004 274);
+	--primary:                    oklch(0.925 0.012 268);
+	--primary-foreground:         oklch(0.2 0.02 274);
+	--secondary:                  oklch(0.258 0.017 274);
+	--secondary-foreground:       oklch(0.975 0.004 274);
+	--muted:                      oklch(0.258 0.017 274);
+	--muted-foreground:           oklch(0.715 0.028 272);
+	--accent:                     oklch(0.258 0.017 274);
+	--accent-foreground:          oklch(0.975 0.004 274);
+	--border:                     oklch(0.86 0.05 268 / 8%);
+	--input:                      oklch(0.86 0.05 268 / 5%);
+	--ring:                       oklch(0.62 0.09 256);
+	--chart-1:                    oklch(0.87 0.012 272);
+	--chart-2:                    oklch(0.56 0.028 272);
+	--chart-3:                    oklch(0.455 0.03 274);
+	--chart-4:                    oklch(0.375 0.026 274);
+	--chart-5:                    oklch(0.268 0.017 274);
+	--sidebar:                    oklch(0.13 0.03 262);
+	--sidebar-foreground:         oklch(0.975 0.004 274);
+	--sidebar-accent:             oklch(0.235 0.022 270);
+	--sidebar-accent-foreground:  oklch(0.975 0.004 274);
+	--sidebar-ring:               oklch(0.62 0.09 256);
+}
+
 /* ── GitHub (Primer) ── */
 :root[data-style-theme="github"] {
 	/* Dark */

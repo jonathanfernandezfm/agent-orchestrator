@@ -2,8 +2,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	applyDocumentTheme,
 	applyDocumentThemeStyle,
+	readStoredThemeStyle,
 	runThemeTransition,
+	themeStyleStorageKey,
 } from "./theme";
+
+describe("readStoredThemeStyle", () => {
+	afterEach(() => localStorage.removeItem(themeStyleStorageKey));
+
+	it("restores Orchestrate Deep", () => {
+		localStorage.setItem(themeStyleStorageKey, "orchestrate-deep");
+		expect(readStoredThemeStyle()).toBe("orchestrate-deep");
+	});
+});
 
 describe("runThemeTransition", () => {
 	afterEach(() => {

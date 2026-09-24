@@ -123,6 +123,7 @@ function TerminalShellRows() {
 
 const COLOR_THEME_OPTIONS = [
 	{ value: "orchestrate", label: "Orchestrate" },
+	{ value: "orchestrate-deep", label: "Orchestrate Deep" },
 	{ value: "github", label: "GitHub" },
 	{ value: "catppuccin", label: "Catppuccin" },
 	{ value: "dracula", label: "Dracula" },

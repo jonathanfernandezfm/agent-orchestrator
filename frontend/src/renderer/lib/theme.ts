@@ -3,6 +3,7 @@ export type ThemePreference = Theme | "system";
 
 export type ThemeStyle =
 	| "orchestrate"
+	| "orchestrate-deep"
 	| "github"
 	| "catppuccin"
 	| "dracula"
@@ -46,6 +47,7 @@ export function readStoredThemeStyle(): ThemeStyle {
 		const stored = getLocalStorage()?.getItem(themeStyleStorageKey);
 		if (
 			stored === "orchestrate" ||
+			stored === "orchestrate-deep" ||
 			stored === "github" ||
 			stored === "catppuccin" ||
 			stored === "dracula" ||
