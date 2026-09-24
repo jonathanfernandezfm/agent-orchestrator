@@ -228,8 +228,9 @@ func scmRepoForClaim(prURL string) (ports.SCMRepo, error) {
 }
 
 // providerKey maps a hostname to the normalized provider key used by the
-// multi-provider dispatcher. GitHub hosts return "github"; everything else is
-// treated as GitLab to match the multi-provider's registration order.
+// multi-provider dispatcher. GitHub and Azure DevOps hosts map to their
+// providers; everything else is treated as GitLab to match the multi-provider's
+// registration order.
 func providerKey(host string) string {
 	return domain.RepositoryProvider(host)
 }
@@ -410,8 +411,12 @@ func normalizePRRef(ref, repoOrigin string) (string, int, error) {
 }
 
 // prURLFromParts constructs the canonical PR/MR URL for a provider.
-// GitHub uses /pull/N; GitLab uses /-/merge_requests/N.
+// GitHub uses /pull/N; GitLab uses /-/merge_requests/N; Azure DevOps uses
+// /{org}/{project}/_git/{repo}/pullrequest/N with owner "org/project".
 func prURLFromParts(host, owner, repo string, number int) string {
+	if r, ok := domain.AzureDevOpsRepoFromFullName(owner + "/" + repo); ok && providerKey(host) == domain.AzureDevOpsProvider {
+		return r.PRURL(number)
+	}
 	if providerKey(host) == "github" {
 		return fmt.Sprintf("https://%s/%s/%s/pull/%d", host, owner, repo, number)
 	}
@@ -444,6 +449,9 @@ func requireSameRepo(prURL, repoOrigin string) error {
 }
 
 func parsePRURL(raw string) (host, owner, name string, number int, err error) {
+	if r, n, ok := domain.ParseAzureDevOpsPRURL(raw); ok {
+		return domain.AzureDevOpsHost, r.Namespace(), r.Name, n, nil
+	}
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", "", "", 0, err

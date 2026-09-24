@@ -12390,6 +12390,7 @@ components:
           enum:
           - github
           - gitlab
+          - azure-devops
           type: string
         repo:
           type: string

@@ -259,6 +259,10 @@ func ensurePRRevisionObjects(ctx context.Context, root, remote string, pr domain
 		if strings.EqualFold(pr.Provider, "gitlab") {
 			providerRef = "refs/merge-requests/" + strconv.Itoa(pr.Number) + "/head"
 		}
+		// Azure DevOps only publishes refs/pull/N/merge; the head is the source branch.
+		if strings.EqualFold(pr.Provider, domain.AzureDevOpsProvider) && strings.TrimSpace(pr.SourceBranch) != "" {
+			providerRef = "refs/heads/" + pr.SourceBranch
+		}
 		refspecs = append(refspecs, "+"+providerRef+":"+refPrefix+"/head")
 	}
 	if strings.TrimSpace(remote) != "" && len(refspecs) > 0 {

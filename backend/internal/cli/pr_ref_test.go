@@ -18,6 +18,8 @@ func TestCLIParsePRURL(t *testing.T) {
 		{"gitlab", "https://gitlab.com/castai/ctxd/-/merge_requests/9", "gitlab.com", "castai", "ctxd", 9, false},
 		{"gitlab nested namespace", "https://gitlab.com/group/subgroup/repo/-/merge_requests/5", "gitlab.com", "group/subgroup", "repo", 5, false},
 		{"gitlab deep nested namespace", "https://gitlab.com/group/sub1/sub2/repo/-/merge_requests/3", "gitlab.com", "group/sub1/sub2", "repo", 3, false},
+		{"azure devops", "https://dev.azure.com/org/My%20Project/_git/web/pullrequest/7", "dev.azure.com", "org/My Project", "web", 7, false},
+		{"azure devops visualstudio.com", "https://org.visualstudio.com/My%20Project/_git/web/pullrequest/7", "dev.azure.com", "org/My Project", "web", 7, false},
 		{"not https", "http://github.com/owner/repo/pull/1", "", "", "", 0, true},
 		{"bad number", "https://github.com/owner/repo/pull/abc", "", "", "", 0, true},
 	}
@@ -120,5 +122,16 @@ func TestNumericClaimNestedNamespace(t *testing.T) {
 	if pHost != host || pOwner != owner || pRepo != repo || pNum != num {
 		t.Errorf("round-trip mismatch: got host=%q owner=%q repo=%q num=%d, want host=%q owner=%q repo=%q num=%d",
 			pHost, pOwner, pRepo, pNum, host, owner, repo, num)
+	}
+}
+
+func TestCLIAzureDevOpsNumericRefRoundTrip(t *testing.T) {
+	host, owner, repo, err := cliRepoFromURL("git@ssh.dev.azure.com:v3/org/My%20Project/web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := cliPRURLFromParts(host, owner, repo, 7)
+	if want := "https://dev.azure.com/org/My%20Project/_git/web/pullrequest/7"; got != want {
+		t.Fatalf("PR URL = %q, want %q", got, want)
 	}
 }

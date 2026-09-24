@@ -4359,7 +4359,7 @@ export interface components {
             /** Format: date-time */
             observedAt?: string;
             /** @enum {string} */
-            provider: "github" | "gitlab";
+            provider: "github" | "gitlab" | "azure-devops";
             repo: string;
             review: components["schemas"]["SessionPRReviewSummary"];
             /** Format: date-time */

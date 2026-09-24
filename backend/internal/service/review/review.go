@@ -316,6 +316,9 @@ func reviewRequestRef(pr domain.PullRequest) (ports.SCMPRRef, error) {
 }
 
 func providerFromPRURL(raw string) string {
+	if _, _, ok := domain.ParseAzureDevOpsPRURL(raw); ok {
+		return domain.AzureDevOpsProvider
+	}
 	if strings.Contains(raw, "/-/merge_requests/") {
 		return "gitlab"
 	}

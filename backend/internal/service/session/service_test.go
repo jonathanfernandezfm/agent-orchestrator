@@ -4418,6 +4418,20 @@ func TestNormalizePRRefGitLab(t *testing.T) {
 			wantNum:    7,
 		},
 		{
+			name:       "numeric ref with azure devops ssh origin",
+			ref:        "#52658",
+			repoOrigin: "git@ssh.dev.azure.com:v3/matrix42/Pro%20-%20Service%20Management/esm-ui",
+			wantURL:    "https://dev.azure.com/matrix42/Pro%20-%20Service%20Management/_git/esm-ui/pullrequest/52658",
+			wantNum:    52658,
+		},
+		{
+			name:       "legacy visualstudio.com PR URL normalizes",
+			ref:        "https://matrix42.visualstudio.com/Pro%20-%20Service%20Management/_git/esm-ui/pullrequest/52658",
+			repoOrigin: "git@ssh.dev.azure.com:v3/matrix42/Pro%20-%20Service%20Management/esm-ui",
+			wantURL:    "https://dev.azure.com/matrix42/Pro%20-%20Service%20Management/_git/esm-ui/pullrequest/52658",
+			wantNum:    52658,
+		},
+		{
 			name:       "invalid URL",
 			ref:        "https://example.com/foo",
 			repoOrigin: "",
@@ -4471,6 +4485,8 @@ func TestRequireSameRepoGitLab(t *testing.T) {
 		{"matching self-managed gitlab", "https://gitlab.mycompany.com/eng/team/-/merge_requests/3", "https://gitlab.mycompany.com/eng/team.git", nil},
 		// Nested namespaces must match end-to-end
 		{"matching nested namespace gitlab", "https://gitlab.com/group/subgroup/repo/-/merge_requests/5", "https://gitlab.com/group/subgroup/repo.git", nil},
+		{"matching azure devops ssh origin", "https://dev.azure.com/org/My%20Project/_git/web/pullrequest/5", "git@ssh.dev.azure.com:v3/org/My%20Project/web", nil},
+		{"azure devops other project", "https://dev.azure.com/org/Other/_git/web/pullrequest/5", "git@ssh.dev.azure.com:v3/org/My%20Project/web", ErrProjectMismatch},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -5,17 +5,19 @@ import (
 	"errors"
 	"log/slog"
 
+	scmazuredevops "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/azuredevops"
 	scmgithub "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/github"
 	scmgitlab "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/gitlab"
 	scmmulti "github.com/aoagents/agent-orchestrator/backend/internal/adapters/scm/multi"
 	"github.com/aoagents/agent-orchestrator/backend/internal/config"
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/lifecycle"
 	scmobserve "github.com/aoagents/agent-orchestrator/backend/internal/observe/scm"
 	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
 )
 
-// startSCMObserver wires the provider-neutral SCM observer with both GitHub
-// and GitLab providers via a multi Provider dispatcher. Missing credentials
+// startSCMObserver wires the provider-neutral SCM observer with the GitHub,
+// GitLab and Azure DevOps providers via a multi Provider dispatcher. Missing credentials
 // for one provider do not prevent the other from starting; the observer is
 // disabled only when no provider has usable credentials.
 func startSCMObserver(ctx context.Context, store *sqlite.Store, lcm *lifecycle.Manager, gitlabCfg config.GitLabConfig, logger *slog.Logger) <-chan struct{} {
@@ -33,6 +35,13 @@ func startSCMObserver(ctx context.Context, store *sqlite.Store, lcm *lifecycle.M
 		logSCMProviderDisabled(logger, "gitlab", glErr)
 	} else {
 		named = append(named, scmmulti.NamedProvider{Key: "gitlab", Provider: glProvider})
+	}
+
+	adoProvider, adoErr := newAzureDevOpsSCMProvider(logger)
+	if adoErr != nil {
+		logSCMProviderDisabled(logger, "azure-devops", adoErr)
+	} else {
+		named = append(named, scmmulti.NamedProvider{Key: domain.AzureDevOpsProvider, Provider: adoProvider})
 	}
 
 	if len(named) == 0 {
@@ -70,6 +79,17 @@ func newGitLabSCMProvider(gitlabCfg config.GitLabConfig, logger *slog.Logger) (*
 	})
 }
 
+// newAzureDevOpsSCMProvider prefers a PAT from the environment and otherwise
+// mints Entra tokens through the Azure CLI (`az login`). Credentials are
+// resolved lazily, so a missing `az` simply leaves ADO repos unobserved.
+func newAzureDevOpsSCMProvider(logger *slog.Logger) (*scmazuredevops.Provider, error) {
+	tokens := scmazuredevops.FallbackTokenSource{
+		scmazuredevops.EnvTokenSource{EnvVars: []string{"AO_AZURE_DEVOPS_TOKEN", "AZURE_DEVOPS_EXT_PAT"}},
+		&scmazuredevops.AzCLITokenSource{},
+	}
+	return scmazuredevops.NewProvider(scmazuredevops.ProviderOptions{Token: tokens, Logger: logger})
+}
+
 func logSCMProviderDisabled(logger *slog.Logger, provider string, err error) {
 	if errors.Is(err, scmgithub.ErrNoToken) || errors.Is(err, scmgithub.ErrAuthFailed) ||
 		errors.Is(err, scmgitlab.ErrNoToken) || errors.Is(err, scmgitlab.ErrAuthFailed) {
@@ -90,6 +110,9 @@ func newMultiSCMProvider(gitlabCfg config.GitLabConfig, logger *slog.Logger) *sc
 	if gl, err := newGitLabSCMProvider(gitlabCfg, logger); err == nil {
 		named = append(named, scmmulti.NamedProvider{Key: "gitlab", Provider: gl})
 	}
+	if ado, err := newAzureDevOpsSCMProvider(logger); err == nil {
+		named = append(named, scmmulti.NamedProvider{Key: domain.AzureDevOpsProvider, Provider: ado})
+	}
 	if len(named) == 0 {
 		return nil
 	}
@@ -108,6 +131,9 @@ func newMultiSCMMerger(gitlabCfg config.GitLabConfig, logger *slog.Logger) *scmm
 	}
 	if gl, err := newGitLabSCMProvider(gitlabCfg, logger); err == nil {
 		named = append(named, scmmulti.NamedMerger{Key: "gitlab", Merger: gl})
+	}
+	if ado, err := newAzureDevOpsSCMProvider(logger); err == nil {
+		named = append(named, scmmulti.NamedMerger{Key: domain.AzureDevOpsProvider, Merger: ado})
 	}
 	if len(named) == 0 {
 		return nil

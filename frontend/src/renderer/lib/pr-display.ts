@@ -21,10 +21,19 @@ export type {
 	PRSummaryPartKey,
 } from "@aoagents/product-ui";
 
-function detectProviderFromUrl(url: string): "github" | "gitlab" {
+const azureDevOpsPRPath = /^(\/(?:[^/]+\/)?[^/]+\/_git\/[^/]+)\/pullrequest\/(\d+)(?:\/.*)?$/i;
+
+function detectProviderFromUrl(url: string): SessionPRSummary["provider"] {
 	if (url.includes("/-/merge_requests/")) return "gitlab";
+	if (/\/_git\/[^/]+\/pullrequest\/\d+/i.test(url)) return "azure-devops";
 	return "github";
 }
+
+const providerLabels: Record<SessionPRSummary["provider"], string> = {
+	github: "GitHub",
+	gitlab: "GitLab",
+	"azure-devops": "Azure DevOps",
+};
 
 const prStateRank: Record<PRState, number> = { open: 0, draft: 1, merged: 2, closed: 3 };
 const ciStates = new Set<SessionPRSummary["ci"]["state"]>(["unknown", "pending", "passing", "failing"]);
@@ -298,7 +307,7 @@ function mergeReadinessDetail(pr: SessionPRSummary): string {
 }
 
 function providerBlockedDetail(pr: SessionPRSummary): string {
-	return appI18n.t("pr.merge.providerBlocked", { provider: pr.provider === "gitlab" ? "GitLab" : "GitHub" });
+	return appI18n.t("pr.merge.providerBlocked", { provider: providerLabels[pr.provider] ?? "GitHub" });
 }
 
 export function prSummaryParts(pr: SessionPRSummary): PRSummaryPart[] {
@@ -650,6 +659,14 @@ function prURL(pr: SessionPRSummary): string | undefined {
 		const ghMatch = url.pathname.match(/^(\/[^/]+\/[^/]+)\/(?:pull|issues)\/(\d+)(?:\/.*)?$/);
 		if (ghMatch) {
 			url.pathname = `${ghMatch[1]}/pull/${ghMatch[2]}`;
+			url.search = "";
+			url.hash = "";
+			return url.toString();
+		}
+		// Azure DevOps: /org/project/_git/repo/pullrequest/N ({org}.visualstudio.com omits org)
+		const adoMatch = url.pathname.match(azureDevOpsPRPath);
+		if (adoMatch) {
+			url.pathname = `${adoMatch[1]}/pullrequest/${adoMatch[2]}`;
 			url.search = "";
 			url.hash = "";
 			return url.toString();

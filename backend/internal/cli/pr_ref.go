@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
 func (c *commandContext) resolvePRRef(ctx context.Context, ref string, project projectDetails) (string, error) {
@@ -52,8 +54,12 @@ func isNumericPRRef(ref string) bool {
 }
 
 // cliPRURLFromParts constructs the canonical PR/MR URL for a provider.
-// GitHub uses /pull/N; GitLab uses /-/merge_requests/N.
+// GitHub uses /pull/N; GitLab uses /-/merge_requests/N; Azure DevOps uses
+// /{org}/{project}/_git/{repo}/pullrequest/N with owner "org/project".
 func cliPRURLFromParts(host, owner, repo string, number int) string {
+	if r, ok := domain.AzureDevOpsRepoFromFullName(owner + "/" + repo); ok && domain.IsAzureDevOpsHost(host) {
+		return r.PRURL(number)
+	}
 	if isCLIGitHubHost(host) {
 		return fmt.Sprintf("https://%s/%s/%s/pull/%d", host, owner, repo, number)
 	}
@@ -61,6 +67,9 @@ func cliPRURLFromParts(host, owner, repo string, number int) string {
 }
 
 func cliParsePRURL(raw string) (host, owner, name string, number int, err error) {
+	if r, n, ok := domain.ParseAzureDevOpsPRURL(raw); ok {
+		return domain.AzureDevOpsHost, r.Namespace(), r.Name, n, nil
+	}
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", "", "", 0, err
@@ -103,6 +112,9 @@ func cliRepoFromURL(raw string) (host, owner, name string, err error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", "", "", errors.New("empty repo")
+	}
+	if r, ok := domain.ParseAzureDevOpsRemote(raw); ok {
+		return domain.AzureDevOpsHost, r.Namespace(), r.Name, nil
 	}
 	if strings.HasPrefix(raw, "git@") {
 		rest := strings.TrimPrefix(raw, "git@")

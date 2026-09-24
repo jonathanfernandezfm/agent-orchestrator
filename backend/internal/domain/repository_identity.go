@@ -20,8 +20,12 @@ type RepositoryIdentity struct {
 }
 
 // RepositoryProvider follows the SCM dispatcher: recognized GitHub hosts use
-// GitHub; other hosts use GitLab, including self-managed installations.
+// GitHub, Azure DevOps hosts use Azure DevOps; other hosts use GitLab,
+// including self-managed installations.
 func RepositoryProvider(host string) string {
+	if IsAzureDevOpsHost(host) {
+		return AzureDevOpsProvider
+	}
 	if hostname, _, err := net.SplitHostPort(host); err == nil {
 		host = hostname
 	}
@@ -37,6 +41,9 @@ func ParseRepositoryIdentity(raw string) (RepositoryIdentity, error) {
 	invalid := errors.New("expected a repository URL with host and full namespace/repository")
 	if raw == "" || strings.TrimSpace(raw) != raw {
 		return RepositoryIdentity{}, invalid
+	}
+	if repo, ok := ParseAzureDevOpsRemote(raw); ok {
+		return RepositoryIdentity{Provider: AzureDevOpsProvider, Host: AzureDevOpsHost, Namespace: repo.Namespace(), Name: repo.Name}, nil
 	}
 	if strings.HasPrefix(raw, "git@") {
 		host, path, ok := strings.Cut(strings.TrimPrefix(raw, "git@"), ":")
@@ -72,7 +79,7 @@ func ParseRepositoryIdentity(raw string) (RepositoryIdentity, error) {
 		}
 	}
 	provider := RepositoryProvider(u.Hostname())
-	if provider == "github" && len(parts) != 2 {
+	if provider == AzureDevOpsProvider || (provider == "github" && len(parts) != 2) {
 		return RepositoryIdentity{}, invalid
 	}
 	return RepositoryIdentity{Provider: provider, Host: strings.ToLower(u.Host), Namespace: strings.Join(parts[:len(parts)-1], "/"), Name: parts[len(parts)-1]}, nil

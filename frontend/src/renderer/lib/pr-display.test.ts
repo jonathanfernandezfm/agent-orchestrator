@@ -436,6 +436,20 @@ describe("prBrowserUrl", () => {
 			),
 		).toBe("https://gitlab.com/acme/repo/-/merge_requests/7");
 	});
+
+	it("strips query params from Azure DevOps PR URLs", () => {
+		const url = "https://dev.azure.com/org/My%20Project/_git/web/pullrequest/7";
+		expect(
+			prBrowserUrl(
+				summary({
+					provider: "azure-devops",
+					url,
+					htmlUrl: `${url}?discussionId=10&commentId=1`,
+					mergeability: { state: "mergeable", reasons: [], prUrl: url },
+				}),
+			),
+		).toBe(url);
+	});
 });
 
 describe("sessionPRDisplaySummaries", () => {
