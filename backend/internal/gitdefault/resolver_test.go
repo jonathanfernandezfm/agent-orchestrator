@@ -288,3 +288,46 @@ func TestAOInitializedFallbackDoesNotOverrideKnownRemoteDefault(t *testing.T) {
 		t.Fatalf("Resolve = %v, want unresolved fetch rather than local main", err)
 	}
 }
+
+func TestRemoteBranchesFetchesBranchesCreatedOnRemote(t *testing.T) {
+	origin, repo := remoteRepo(t, "main")
+	updater := filepath.Join(filepath.Dir(repo), "updater")
+	run(t, "git", "clone", origin, updater)
+	configureGit(t, updater)
+	runGit(t, updater, "push", "origin", "HEAD:refs/heads/feature/123-remote")
+
+	list, err := New("", nil).RemoteBranches(context.Background(), context.Background(), repo)
+	if err != nil {
+		t.Fatalf("RemoteBranches: %v", err)
+	}
+	if list.Remote != "origin" || list.FetchErr != nil {
+		t.Fatalf("list = %#v, want fresh origin list", list)
+	}
+	got := strings.Join(list.Branches, ",")
+	if !strings.Contains(","+got+",", ",feature/123-remote,") || !strings.Contains(","+got+",", ",main,") || strings.Contains(got, "HEAD") {
+		t.Fatalf("branches = %q, want feature/123-remote and main without HEAD", got)
+	}
+	gitOutput(t, repo, "rev-parse", "--verify", "refs/remotes/origin/feature/123-remote")
+}
+
+func TestRemoteBranchesFallsBackToCachedRefsWhenOffline(t *testing.T) {
+	origin, repo := remoteRepo(t, "main")
+	if err := os.Rename(origin, origin+".offline"); err != nil {
+		t.Fatalf("take origin offline: %v", err)
+	}
+
+	list, err := New("", nil).RemoteBranches(context.Background(), context.Background(), repo)
+	if err != nil {
+		t.Fatalf("RemoteBranches: %v", err)
+	}
+	if list.FetchErr == nil || strings.Join(list.Branches, ",") != "main" {
+		t.Fatalf("list = %#v, want cached main with fetch error", list)
+	}
+}
+
+func TestRemoteBranchesRemotelessRepoIsEmpty(t *testing.T) {
+	list, err := New("", nil).RemoteBranches(context.Background(), context.Background(), localRepo(t, "main"))
+	if err != nil || list.Remote != "" || len(list.Branches) != 0 {
+		t.Fatalf("list = %#v, err = %v; want empty", list, err)
+	}
+}

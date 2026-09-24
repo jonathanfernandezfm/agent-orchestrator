@@ -4064,6 +4064,7 @@ func TestDelegateTaskPassesAttachmentsToSpawnConfig(t *testing.T) {
 		ProjectID:      "mer",
 		Brief:          "Use the attached image.",
 		RequestedAgent: domain.HarnessCodex,
+		Branch:         "feature/123-remote",
 		Attachments: []ports.SpawnAttachment{
 			{Ext: ".png", Data: []byte{1, 2, 3}},
 		},
@@ -4079,6 +4080,9 @@ func TestDelegateTaskPassesAttachmentsToSpawnConfig(t *testing.T) {
 	}
 	if fc.spawnedCfg.Harness != domain.HarnessCodex || fc.spawnedCfg.Prompt != "Use the attached image." {
 		t.Fatalf("spawned cfg fields = %#v", fc.spawnedCfg)
+	}
+	if fc.spawnedCfg.Branch != "feature/123-remote" {
+		t.Fatalf("spawned branch = %q, want feature/123-remote", fc.spawnedCfg.Branch)
 	}
 	if len(fc.spawnedCfg.Attachments) != 1 {
 		t.Fatalf("attachments = %#v, want one", fc.spawnedCfg.Attachments)

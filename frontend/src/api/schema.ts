@@ -983,6 +983,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{id}/branches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch the project's primary remote and list its branches */
+        get: operations["listProjectBranches"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{id}/config": {
         parameters: {
             query?: never;
@@ -3507,6 +3524,7 @@ export interface components {
             /** @enum {string} */
             approvalMode?: "default" | "accept-edits" | "auto" | "bypass-permissions";
             attachments?: components["schemas"]["AttachmentInput"][];
+            branch?: string;
             brief: string;
             effort?: null | string;
             /** @enum {string} */
@@ -4009,6 +4027,11 @@ export interface components {
             path: string;
             repo: string;
             workspaceRepos?: components["schemas"]["WorkspaceRepo"][];
+        };
+        ProjectBranchesResult: {
+            branches: string[];
+            remote?: string;
+            stale?: boolean;
         };
         ProjectClonePreparationCleanupInput: {
             path: string;
@@ -8053,6 +8076,56 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RemoveProjectResult"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listProjectBranches: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier (registry key). */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectBranchesResult"];
                 };
             };
             /** @description Bad Request */

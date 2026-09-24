@@ -692,3 +692,37 @@ func TestProjectsAPI_SetPermissions(t *testing.T) {
 	body, status, _ = doRequest(t, srv, "PATCH", "/api/v1/projects/missing/permissions", `{"permissions":"auto"}`)
 	assertErrorCode(t, body, status, http.StatusNotFound, "PROJECT_NOT_FOUND")
 }
+
+func TestProjectsAPI_BranchesFetchesRemoteBranches(t *testing.T) {
+	srv := newTestServer(t)
+	repo := gitRepo(t, "agent-orchestrator")
+	origin := filepath.Join(t.TempDir(), "origin.git")
+	for _, args := range [][]string{
+		{"init", "--bare", origin},
+		{"-C", repo, "remote", "add", "origin", origin},
+		{"-C", repo, "push", "origin", "main"},
+		// Created on the remote only; the local clone has never fetched it.
+		{"-C", origin, "branch", "feature/123-remote", "main"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	if body, status, _ := doRequest(t, srv, "POST", "/api/v1/projects", `{"path":`+quote(repo)+`,"projectId":"ao"}`); status != http.StatusCreated {
+		t.Fatalf("POST project = %d, want 201; body=%s", status, body)
+	}
+
+	body, status, headers := doRequest(t, srv, "GET", "/api/v1/projects/ao/branches", "")
+	if status != http.StatusOK {
+		t.Fatalf("GET branches = %d, want 200; body=%s", status, body)
+	}
+	assertJSON(t, headers)
+	var got projectsvc.BranchesResult
+	mustJSON(t, body, &got)
+	if got.Remote != "origin" || got.Stale || !strings.Contains(","+strings.Join(got.Branches, ",")+",", ",feature/123-remote,") {
+		t.Fatalf("branches = %#v, want fresh origin list with feature/123-remote", got)
+	}
+
+	body, status, _ = doRequest(t, srv, "GET", "/api/v1/projects/missing/branches", "")
+	assertErrorCode(t, body, status, http.StatusNotFound, "PROJECT_NOT_FOUND")
+}

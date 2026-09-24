@@ -1637,6 +1637,7 @@ func (c *SessionsController) delegateTask(w http.ResponseWriter, r *http.Request
 		Effort:         sanitizedOptionalString(in.Effort),
 		ApprovalMode:   in.ApprovalMode,
 		RequestedMode:  in.Mode,
+		Branch:         strings.TrimSpace(in.Branch),
 		Attachments:    attachments,
 	})
 	if err != nil {

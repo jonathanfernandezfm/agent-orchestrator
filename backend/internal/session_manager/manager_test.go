@@ -4674,7 +4674,7 @@ func TestRefreshDefaultBranchesUsesOneOverallFetchBudget(t *testing.T) {
 	}
 
 	started := time.Now()
-	baseRefs := m.refreshDefaultBranchesBestEffort(context.Background(), project)
+	baseRefs := m.refreshDefaultBranchesBestEffort(context.Background(), project, "")
 	elapsed := time.Since(started)
 
 	if elapsed > 250*time.Millisecond {
@@ -4709,6 +4709,29 @@ func TestSpawn_FetchesQualifiedDefaultBranchRemote(t *testing.T) {
 	}
 	if got, want := ws.lastCfg.BaseRef, "refs/remotes/upstream/main"; got != want {
 		t.Fatalf("create base ref = %q, want %q", got, want)
+	}
+}
+
+func TestSpawn_ExplicitBranchIsFetchedFromRootRemote(t *testing.T) {
+	m, st, _, ws := newManager()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Config: testRoleAgents()}
+	ws.resolved = map[string]ports.WorkspaceDefaultBranch{
+		"/repo/mer": {Remote: "origin", Branch: "main", BaseRef: "refs/remotes/origin/main"},
+	}
+
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "feature/123-remote"}); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []fetchDefaultBranchCall{
+		{repoPath: "/repo/mer", remote: "origin", branch: "main", baseRef: "refs/remotes/origin/main"},
+		{repoPath: "/repo/mer", remote: "origin", branch: "feature/123-remote", baseRef: "refs/remotes/origin/feature/123-remote"},
+	}
+	if got := ws.fetches; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fetches = %#v, want %#v", got, want)
+	}
+	if got, want := ws.lastCfg.Branch, "feature/123-remote"; got != want {
+		t.Fatalf("create branch = %q, want %q", got, want)
 	}
 }
 

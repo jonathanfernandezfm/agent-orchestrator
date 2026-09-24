@@ -2368,6 +2368,45 @@ paths:
       summary: Atomically replace a project's display name and config
       tags:
       - projects
+  /api/v1/projects/{id}/branches:
+    get:
+      operationId: listProjectBranches
+      parameters:
+      - description: Project identifier (registry key).
+        in: path
+        name: id
+        required: true
+        schema:
+          description: Project identifier (registry key).
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectBranchesResult'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+      summary: Fetch the project's primary remote and list its branches
+      tags:
+      - projects
   /api/v1/projects/{id}/config:
     put:
       operationId: setProjectConfig
@@ -10143,6 +10182,9 @@ components:
           items:
             $ref: '#/components/schemas/AttachmentInput'
           type: array
+        branch:
+          maxLength: 255
+          type: string
         brief:
           maxLength: 16384
           type: string
@@ -11474,6 +11516,19 @@ components:
       - repo
       - defaultBranch
       - folderMissing
+      type: object
+    ProjectBranchesResult:
+      properties:
+        branches:
+          items:
+            type: string
+          type: array
+        remote:
+          type: string
+        stale:
+          type: boolean
+      required:
+      - branches
       type: object
     ProjectClonePreparationCleanupInput:
       properties:

@@ -44,6 +44,7 @@ import { STANDALONE_WORKSPACE_ID } from "../types/workspace";
 import { AgentModelCombobox } from "./settings/AgentModelCombobox";
 import { useModelTuning } from "./settings/ModelTuningControls";
 import { SettingsOptionMenu } from "./settings/SettingsOptionMenu";
+import { SearchablePicker } from "./SearchablePicker";
 import {
 	readTaskComposerPreferences,
 	rememberTaskComposerPreference,
@@ -61,6 +62,7 @@ type CreateTaskInput = {
 	effort?: string;
 	mode?: "tui";
 	approvalMode?: "bypass-permissions";
+	branch?: string;
 	attachments?: FileAttachmentPayload[];
 };
 
@@ -120,6 +122,9 @@ export function TaskComposer({
 	const [effort, setEffort] = useState("");
 	const [agent, setAgent] = useState("");
 	const [agentTouched, setAgentTouched] = useState(false);
+	// Empty keeps AO's generated work branch; otherwise the worker starts on
+	// this existing branch as-is.
+	const [branch, setBranch] = useState("");
 	const [modelTouched, setModelTouched] = useState(false);
 	const [effortTouched, setEffortTouched] = useState(false);
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -197,6 +202,7 @@ export function TaskComposer({
 						...(input.effort !== undefined ? { effort: input.effort } : {}),
 						...(input.mode ? { mode: input.mode } : {}),
 						...(input.approvalMode ? { approvalMode: input.approvalMode } : {}),
+						...(input.branch ? { branch: input.branch } : {}),
 						...(input.attachments && input.attachments.length > 0 ? { attachments: input.attachments } : {}),
 					},
 				});
@@ -277,6 +283,22 @@ export function TaskComposer({
 			return data.project as Project;
 		},
 	});
+	// Only single-repo projects can start on an existing branch. Opening the
+	// composer fetches the remote, so branches created there show up here.
+	const supportsBranchPicker = !isCloudProject && !isStandalone && projectQuery.data?.kind === "single_repo";
+	const branchesQuery = useQuery({
+		queryKey: ["project-branches", projectId],
+		enabled: supportsBranchPicker,
+		staleTime: 0,
+		queryFn: async () => {
+			const { data, error: apiError } = await apiClient.GET("/api/v1/projects/{id}/branches", {
+				params: { path: { id: projectId ?? "" } },
+			});
+			if (apiError) throw new Error(apiErrorMessage(apiError));
+			return data;
+		},
+	});
+	useEffect(() => setBranch(""), [projectId]);
 	const agentsQuery = useAgentReadinessQuery();
 	const { settings } = useSettings();
 	// The composer preselects the agent and model a spawn would actually use
@@ -483,20 +505,34 @@ export function TaskComposer({
 	useEffect(() => () => clearAttachments(), [clearAttachments]);
 
 	const executionContext = projectId ? (
-		<ExecutionContextView
-			activeAgent={selectedAgentLabel || undefined}
-			activeRole="worker"
-			baseBranch={projectQuery.data?.defaultBranch ?? cloudProject?.defaultBranch}
-			error={!isCloudProject && !isStandalone && projectQuery.isError ? (projectQuery.error instanceof Error ? projectQuery.error.message : t("newTask.configUnavailable")) : undefined}
-			labels={executionContextLabels(t)}
-			loading={!isCloudProject && !isStandalone && projectQuery.isPending}
-			orchestratorAgent={projectQuery.data?.config?.orchestrator?.agent ? selectedAgentLabelFor(projectQuery.data.config.orchestrator.agent, agentCatalog?.agents) : undefined}
-			path={projectQuery.data?.path}
-			projectName={projectQuery.data?.name ?? cloudProject?.displayName ?? projectId}
-			repositories={projectQuery.data ? projectRepositories(projectQuery.data) : cloudRepositories}
-			variant="compact"
-			workerAgent={projectWorkerAgent ? selectedAgentLabelFor(projectWorkerAgent, agentCatalog?.agents) : undefined}
-		/>
+		<>
+			<ExecutionContextView
+				activeAgent={selectedAgentLabel || undefined}
+				activeRole="worker"
+				baseBranch={projectQuery.data?.defaultBranch ?? cloudProject?.defaultBranch}
+				branch={branch || undefined}
+				error={!isCloudProject && !isStandalone && projectQuery.isError ? (projectQuery.error instanceof Error ? projectQuery.error.message : t("newTask.configUnavailable")) : undefined}
+				labels={executionContextLabels(t)}
+				loading={!isCloudProject && !isStandalone && projectQuery.isPending}
+				orchestratorAgent={projectQuery.data?.config?.orchestrator?.agent ? selectedAgentLabelFor(projectQuery.data.config.orchestrator.agent, agentCatalog?.agents) : undefined}
+				path={projectQuery.data?.path}
+				projectName={projectQuery.data?.name ?? cloudProject?.displayName ?? projectId}
+				repositories={projectQuery.data ? projectRepositories(projectQuery.data) : cloudRepositories}
+				variant="compact"
+				workerAgent={projectWorkerAgent ? selectedAgentLabelFor(projectWorkerAgent, agentCatalog?.agents) : undefined}
+			/>
+			{supportsBranchPicker ? (
+				<TaskBranchPicker
+					branches={branchesQuery.data?.branches ?? []}
+					disabled={isSubmitting}
+					error={branchesQuery.error instanceof Error ? branchesQuery.error.message : undefined}
+					fetching={branchesQuery.isFetching}
+					stale={branchesQuery.data?.stale === true}
+					value={branch}
+					onChange={setBranch}
+				/>
+			) : null}
+		</>
 	) : undefined;
 
 	const submitTask = async (
@@ -538,6 +574,7 @@ export function TaskComposer({
 				effort: requestedEffort,
 				mode: interfaceMode,
 				approvalMode,
+				branch: supportsBranchPicker && branch ? branch : undefined,
 				attachments: attachmentPayloads.length > 0 ? attachmentPayloads : undefined,
 			});
 			if (selectedAgent) {
@@ -707,6 +744,48 @@ function TaskEffortPicker({ disabled, label, onChange, options, value }: TaskCom
 			)}
 			onChange={(nextEffort) => onChange(nextEffort === "__default__" ? "" : nextEffort)}
 		/>
+	);
+}
+
+function TaskBranchPicker({
+	branches,
+	disabled,
+	error,
+	fetching,
+	stale,
+	value,
+	onChange,
+}: {
+	branches: string[];
+	disabled: boolean;
+	error?: string;
+	fetching: boolean;
+	stale: boolean;
+	value: string;
+	onChange: (value: string) => void;
+}) {
+	const { t } = useTranslation();
+	const label = t("newTask.branch");
+	const newBranchLabel = t("newTask.branchNew");
+	return (
+		<div className="flex h-8 min-w-0 items-center gap-2 border-b border-border/50 px-4 text-xs text-passive">
+			<span className="shrink-0">{label}</span>
+			<SearchablePicker
+				ariaLabel={label}
+				placeholder={newBranchLabel}
+				searchPlaceholder={t("newTask.branchSearch")}
+				value={value}
+				onChange={onChange}
+				options={[{ value: "", label: newBranchLabel }, ...branches.map((name) => ({ value: name, label: name }))]}
+				disabled={disabled}
+				className="h-6 w-auto min-w-0 max-w-80 border-transparent bg-transparent px-1.5 text-xs hover:border-transparent hover:bg-muted"
+			/>
+			{fetching ? (
+				<Loader2 className="size-3 shrink-0 animate-spin" role="status" aria-label={t("newTask.branchLoading")} />
+			) : null}
+			{!fetching && stale ? <span className="truncate text-warning">{t("newTask.branchStale")}</span> : null}
+			{!fetching && error ? <span className="truncate text-error" title={error}>{error}</span> : null}
+		</div>
 	);
 }
 

@@ -969,6 +969,9 @@ type DelegateTaskRequest struct {
 	// Mode is omitted for the daemon-owned default. The UI sends tui only when
 	// the user explicitly accepts the fallback after Chat preflight fails.
 	Mode domain.SessionMode `json:"mode,omitempty" enum:"tui,chat"`
+	// Branch starts the worker on an existing branch instead of AO's generated
+	// ao/<session-id>/root branch. Omitted keeps the generated branch.
+	Branch string `json:"branch,omitempty" maxLength:"255"`
 	// Attachments are files pasted, dropped, or picked into the delegated task
 	// brief. Each carries bytes as standard base64 (no data: URL prefix). The
 	// daemon writes them into the spawned worker worktree and appends path

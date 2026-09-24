@@ -54,6 +54,16 @@ type InitializeRepositoryResult struct {
 	Path string `json:"path"`
 }
 
+// BranchesResult is the response for GET /api/v1/projects/{id}/branches: the
+// primary remote's branches, most recently committed first, freshly fetched.
+type BranchesResult struct {
+	Remote   string   `json:"remote,omitempty"`
+	Branches []string `json:"branches"`
+	// Stale means the remote was unreachable and Branches are the refs AO had
+	// already fetched.
+	Stale bool `json:"stale,omitempty"`
+}
+
 // UpdateSettingsInput is the body shape for PUT /api/v1/projects/{id}. It
 // atomically replaces the user-facing display name and per-project config.
 type UpdateSettingsInput struct {

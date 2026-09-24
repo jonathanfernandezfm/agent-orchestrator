@@ -193,6 +193,45 @@ func (r *Resolver) Resolve(ctx, remoteCtx context.Context, repo string) (Resolut
 	)
 }
 
+// RemoteBranchList is the primary remote's branches, most recently committed
+// first. FetchErr is set when refreshing from the remote failed and Branches
+// came from the refs already cached locally, so they may be stale.
+type RemoteBranchList struct {
+	Remote   string
+	Branches []string
+	FetchErr error
+}
+
+// RemoteBranches fetches every branch of the repository's primary remote and
+// lists the resulting remote-tracking branches. It never prunes on its own;
+// Git's fetch.prune configuration still applies. A remoteless repository yields
+// an empty list. remoteCtx bounds only the fetch.
+func (r *Resolver) RemoteBranches(ctx, remoteCtx context.Context, repo string) (RemoteBranchList, error) {
+	remote, remotes, err := r.selectRemote(ctx, repo)
+	if err != nil || len(remotes) == 0 {
+		return RemoteBranchList{}, err
+	}
+	if remoteCtx == nil {
+		remoteCtx = ctx
+	}
+	list := RemoteBranchList{Remote: remote}
+	refspec := "+refs/heads/*:refs/remotes/" + remote + "/*"
+	if _, err := r.run(remoteCtx, r.binary, "-C", repo, "fetch", "--no-tags", "--no-recurse-submodules", "--", remote, refspec); err != nil {
+		list.FetchErr = fmt.Errorf("fetch remote %q for repository %q: %w", remote, repo, err)
+	}
+	prefix := "refs/remotes/" + remote + "/"
+	out, err := r.run(ctx, r.binary, "-C", repo, "for-each-ref", "--sort=-committerdate", "--format=%(refname)", prefix)
+	if err != nil {
+		return RemoteBranchList{}, fmt.Errorf("list remote %q branches for repository %q: %w", remote, repo, err)
+	}
+	for _, ref := range nonEmptyLines(string(out)) {
+		if branch := strings.TrimPrefix(ref, prefix); branch != ref && branch != "HEAD" {
+			list.Branches = append(list.Branches, branch)
+		}
+	}
+	return list, nil
+}
+
 // An empty clone can have an AO-created initial commit before its first push.
 // Keep remote HEAD authoritative once available, and never use this fallback
 // when the selected remote already has fetched branches.

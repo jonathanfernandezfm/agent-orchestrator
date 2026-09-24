@@ -34,7 +34,9 @@ type DelegateTaskInput struct {
 	Effort         *string
 	ApprovalMode   domain.PermissionMode
 	RequestedMode  domain.SessionMode
-	Attachments    []ports.SpawnAttachment
+	// Branch is an existing branch to start on; empty uses AO's generated one.
+	Branch      string
+	Attachments []ports.SpawnAttachment
 }
 
 // DelegateTaskOutcome identifies the spawned worker. OrchestratorID remains
@@ -76,6 +78,7 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		},
 		EffortOverride: effortOverride,
 		RequestedMode:  in.RequestedMode,
+		Branch:         in.Branch,
 		Attachments:    in.Attachments,
 	})
 	if err != nil {

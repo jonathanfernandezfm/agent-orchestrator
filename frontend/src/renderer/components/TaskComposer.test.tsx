@@ -633,6 +633,49 @@ describe("TaskComposer", () => {
 		expect(queryClient.getQueryData(agentReadinessQueryKey)).toEqual({ agents: [completed] });
 	});
 
+	it("starts a single-repo task on a fetched remote branch", async () => {
+		h.get.mockImplementation(async (path: string) => {
+			if (path.includes("/models")) {
+				return { data: { agent: "codex", selectionMode: "text", models: [], allowCustom: true } };
+			}
+			if (path === "/api/v1/projects/{id}/branches") {
+				return { data: { remote: "origin", branches: ["feature/123-remote", "main"] } };
+			}
+			return { data: { status: "ok", project: { kind: "single_repo", config: {} } } };
+		});
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-branch" } });
+
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={vi.fn()} />
+			</Wrap>,
+		);
+
+		await waitForTaskReady();
+		fireEvent.click(await screen.findByRole("combobox", { name: "Branch" }));
+		fireEvent.click(await screen.findByRole("option", { name: "feature/123-remote" }));
+		fireEvent.click(startTask());
+
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ branch: "feature/123-remote" }) }),
+			),
+		);
+	});
+
+	it("hides the branch picker for projects that cannot start on an existing branch", async () => {
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={vi.fn()} />
+			</Wrap>,
+		);
+
+		await waitForTaskReady();
+		expect(screen.queryByRole("combobox", { name: "Branch" })).not.toBeInTheDocument();
+		expect(h.get).not.toHaveBeenCalledWith("/api/v1/projects/{id}/branches", expect.anything());
+	});
+
 	it("starts a promptless worker when the task is empty", async () => {
 		const onCreated = vi.fn();
 		h.post.mockResolvedValueOnce({ data: { workerId: "sess-empty" } });

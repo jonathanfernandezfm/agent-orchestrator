@@ -31,6 +31,7 @@ func (c *ProjectsController) Register(r chi.Router) {
 	r.Post("/projects/clone/cleanup", c.cleanupPreparedClone)
 	r.Post("/projects/initialize", c.initialize)
 	r.Get("/projects/{id}", c.get)
+	r.Get("/projects/{id}/branches", c.branches)
 	r.Put("/projects/{id}", c.updateSettings)
 	r.Put("/projects/{id}/config", c.setConfig)
 	r.Patch("/projects/{id}/permissions", c.setPermissions)
@@ -157,6 +158,19 @@ func (c *ProjectsController) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (c *ProjectsController) branches(w http.ResponseWriter, r *http.Request) {
+	if c.Mgr == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/projects/{id}/branches")
+		return
+	}
+	got, err := c.Mgr.Branches(r.Context(), projectID(r))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, got)
 }
 
 func (c *ProjectsController) updateSettings(w http.ResponseWriter, r *http.Request) {

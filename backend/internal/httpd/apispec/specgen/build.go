@@ -474,6 +474,7 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"ProjectInitializeRepositoryInput":  "InitializeRepositoryInput",
 	"ProjectInitializeRepositoryResult": "InitializeRepositoryResult",
 	"ProjectRemoveResult":               "RemoveProjectResult",
+	"ProjectBranchesResult":             "ProjectBranchesResult",
 	"ProjectSetPermissionsInput":        "SetProjectPermissionsInput",
 	"ProjectSetConfigInput":             "SetProjectConfigInput",
 	"ProjectUpdateSettingsInput":        "UpdateProjectSettingsInput",
@@ -1929,6 +1930,17 @@ func projectOperations() []operation {
 			pathParams: []any{controllers.ProjectIDParam{}},
 			resps: []respUnit{
 				{http.StatusOK, controllers.GetProjectResponse{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{id}/branches", id: "listProjectBranches", tag: "projects",
+			summary:    "Fetch the project's primary remote and list its branches",
+			pathParams: []any{controllers.ProjectIDParam{}},
+			resps: []respUnit{
+				{http.StatusOK, projectsvc.BranchesResult{}},
+				{http.StatusBadRequest, envelope.APIError{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
 			},

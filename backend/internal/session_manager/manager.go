@@ -989,7 +989,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 	if branch == "" {
 		branch = DefaultSpawnBranch(id, cfg.Kind, sessionPrefix(project), projectKind, m.dataDir)
 	}
-	baseRefs := m.refreshDefaultBranchesBestEffort(ctx, project)
+	baseRefs := m.refreshDefaultBranchesBestEffort(ctx, project, cfg.Branch)
 	ws, workspaceProject, err := m.createSessionWorkspace(ctx, project, cfg, id, branch, baseRefs)
 	if err != nil {
 		// Nothing observable exists yet — no worktree, no runtime — so the seed
@@ -1313,7 +1313,11 @@ type defaultBranchRefreshTarget struct {
 	resolved         ports.WorkspaceDefaultBranch
 }
 
-func (m *Manager) refreshDefaultBranchesBestEffort(ctx context.Context, project domain.ProjectRecord) map[string]string {
+// requestedBranch is the caller's explicit spawn branch, if any. For a
+// single-repo project it is fetched from the root's remote as well, so a branch
+// created on the remote but not yet fetched seeds the worktree from the remote
+// commit instead of becoming a same-named branch off the default.
+func (m *Manager) refreshDefaultBranchesBestEffort(ctx context.Context, project domain.ProjectRecord, requestedBranch string) map[string]string {
 	if project.Kind.WithDefault() == domain.ProjectKindScratch {
 		return nil
 	}
@@ -1384,6 +1388,25 @@ func (m *Manager) refreshDefaultBranchesBestEffort(ctx context.Context, project 
 				"remote", target.resolved.Remote,
 				"branch", target.resolved.Branch,
 				"baseRef", target.resolved.BaseRef,
+				"error", err,
+			)
+		}
+	}
+	root := targets[0].resolved
+	if requestedBranch = strings.TrimSpace(requestedBranch); requestedBranch != "" && root.Remote != "" &&
+		requestedBranch != root.Branch && project.Kind.WithDefault() == domain.ProjectKindSingleRepo {
+		requested := ports.WorkspaceDefaultBranch{
+			Remote:  root.Remote,
+			Branch:  requestedBranch,
+			BaseRef: "refs/remotes/" + root.Remote + "/" + requestedBranch,
+		}
+		// A branch that exists only locally is a normal case, so a failed fetch
+		// is informational: the adapter falls back to local refs as before.
+		if err := refresher.FetchDefaultBranch(fetchCtx, targets[0].repoPath, requested); err != nil {
+			m.logger.Debug("spawn: requested branch fetch failed; continuing with local refs",
+				"projectID", project.ID,
+				"remote", root.Remote,
+				"branch", requestedBranch,
 				"error", err,
 			)
 		}

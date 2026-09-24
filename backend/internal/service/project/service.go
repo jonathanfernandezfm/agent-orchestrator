@@ -57,6 +57,10 @@ type Manager interface {
 	// Remove unregisters a project, stopping its sessions and reclaiming
 	// managed workspaces.
 	Remove(ctx context.Context, id domain.ProjectID) (RemoveResult, error)
+
+	// Branches fetches a single-repo project's primary remote and lists its
+	// branches, so a new task can start on an existing branch.
+	Branches(ctx context.Context, id domain.ProjectID) (BranchesResult, error)
 }
 
 // SessionTeardowner is the narrow session-service surface project removal
@@ -816,6 +820,47 @@ func resolveDefaultBranch(ctx context.Context, path string) string {
 		return ""
 	}
 	return resolution.Branch
+}
+
+// branchesFetchBudget bounds the network fetch behind the branch picker; a slow
+// or offline remote falls back to already-fetched refs.
+const branchesFetchBudget = 30 * time.Second
+
+// Branches fetches the project's primary remote and lists its branches. Only
+// single-repo projects qualify: workspace projects branch every child repo at
+// once, and scratch projects have no repository.
+func (m *Service) Branches(ctx context.Context, id domain.ProjectID) (BranchesResult, error) {
+	if err := validateProjectID(id); err != nil {
+		return BranchesResult{}, err
+	}
+	row, ok, err := m.store.GetProject(ctx, string(id))
+	if err != nil {
+		return BranchesResult{}, apierr.Internal("PROJECT_LOAD_FAILED", "Failed to load project")
+	}
+	if !ok || !row.ArchivedAt.IsZero() {
+		return BranchesResult{}, apierr.NotFound("PROJECT_NOT_FOUND", "Unknown project")
+	}
+	if row.Kind.WithDefault() != domain.ProjectKindSingleRepo {
+		return BranchesResult{}, apierr.Invalid("PROJECT_BRANCHES_UNSUPPORTED", "Only single-repository projects can start a task on an existing branch", nil)
+	}
+	remoteCtx, cancel := context.WithTimeout(ctx, branchesFetchBudget)
+	defer cancel()
+	list, err := gitdefault.New("git", nil).RemoteBranches(ctx, remoteCtx, row.Path)
+	if err != nil {
+		if errors.Is(err, gitdefault.ErrUnresolved) {
+			return BranchesResult{}, apierr.Invalid("PROJECT_REMOTE_UNRESOLVED", strings.TrimPrefix(err.Error(), gitdefault.ErrUnresolved.Error()+": "), nil)
+		}
+		m.logger.Warn("project branches: list failed", "projectID", id, "error", err)
+		return BranchesResult{}, apierr.Internal("PROJECT_BRANCHES_FAILED", "Failed to list project branches")
+	}
+	if list.FetchErr != nil {
+		m.logger.Warn("project branches: fetch failed; listing cached refs", "projectID", id, "error", list.FetchErr)
+	}
+	branches := list.Branches
+	if branches == nil {
+		branches = []string{}
+	}
+	return BranchesResult{Remote: list.Remote, Branches: branches, Stale: list.FetchErr != nil}, nil
 }
 
 // Remove stops live project sessions, reclaims safe managed workspaces, then
