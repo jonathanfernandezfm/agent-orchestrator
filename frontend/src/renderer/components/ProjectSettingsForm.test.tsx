@@ -644,6 +644,39 @@ describe("ProjectSettingsForm", () => {
 		expect(request?.body.config.autoReview).toBe(false);
 	});
 
+	it("loads and saves the post-create setup script one command per line", async () => {
+		mockProject({
+			id: "proj-1",
+			name: "Project One",
+			kind: "single_repo",
+			path: "/repo/project-one",
+			repo: "git@github.com:acme/project-one.git",
+			defaultBranch: "main",
+			config: {
+				worker: { agent: "codex" },
+				orchestrator: { agent: "claude-code" },
+				postCreate: ["pnpm install"],
+			},
+		});
+
+		renderSettings("proj-1", undefined, "workflow");
+
+		const script = await screen.findByRole("textbox", { name: "Setup script" });
+		expect(script).toHaveValue("pnpm install");
+
+		await userEvent.type(script, "{Enter}{Enter}  cp ../.env .env  ");
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		expect(putMock.mock.calls[0]?.[1]?.body.config.postCreate).toEqual(["pnpm install", "cp ../.env .env"]);
+
+		await userEvent.clear(script);
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(2));
+		expect(putMock.mock.calls[1]?.[1]?.body.config.postCreate).toBeUndefined();
+	});
+
 	it("keeps the automatic default branch unpinned when saving other settings", async () => {
 		mockProject({
 			id: "proj-1",

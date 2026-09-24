@@ -140,6 +140,7 @@ function SettingsBody({
 		displayName: project.name,
 		defaultBranch: config.defaultBranch ?? DEFAULT_BRANCH_AUTO,
 		sessionPrefix: config.sessionPrefix ?? "",
+		postCreate: (config.postCreate ?? []).join("\n"),
 		workerAgent: config.worker?.agent ?? "",
 		orchestratorAgent: config.orchestrator?.agent ?? "",
 		workerModel: config.worker?.agentConfig?.model ?? config.agentConfig?.model ?? "",
@@ -234,6 +235,7 @@ function SettingsBody({
 								? undefined
 								: form.defaultBranch || undefined,
 						sessionPrefix: form.sessionPrefix || undefined,
+						postCreate: splitCommandLines(form.postCreate),
 						worker: {
 							...config.worker,
 							agent: form.workerAgent,
@@ -645,6 +647,21 @@ function SettingsBody({
 									}),
 								}}
 							/>
+							<ProjectSettingsSection title={t("settings.project.setupScript")} grouped>
+								<div className="settings-row-bar">
+									<textarea
+										id="postCreate"
+										aria-label={t("settings.project.setupScript")}
+										value={form.postCreate}
+										onChange={(e) => setForm((f) => ({ ...f, postCreate: e.target.value }))}
+										rows={4}
+										spellCheck={false}
+										placeholder={t("settings.project.setupScriptPlaceholder")}
+										className="w-full resize-y rounded-lg border border-(--color-border-settings-input) bg-(--color-bg-settings-input) px-2.5 py-2 font-mono text-xs text-(--color-text-settings-input) outline-none placeholder:text-(--color-text-settings-placeholder) focus-visible:ring-1 focus-visible:ring-primary"
+									/>
+								</div>
+								<p className="px-1 text-xs leading-row text-settings-muted">{t("settings.project.setupScriptHelp")}</p>
+							</ProjectSettingsSection>
 						</>
 					) : (
 						<p className="px-1 text-xs text-settings-muted">{t("settings.project.workflow")}</p>
@@ -872,6 +889,13 @@ function scratchSupportedConfig(config: ProjectConfig): ProjectConfig {
 		...supported
 	} = config as ProjectConfig;
 	return supported;
+}
+
+// splitCommandLines maps the setup-script textarea to postCreate: one command
+// per non-blank line, each run separately by the daemon.
+function splitCommandLines(text: string): string[] | undefined {
+	const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+	return lines.length > 0 ? lines : undefined;
 }
 
 function blankToUndefined<T extends object>(obj: T): T | undefined {
