@@ -1893,7 +1893,10 @@ function MergedReviewsSection({
 				reviewUrl: entry.reviewUrl,
 				submittedAt: entry.submittedAt,
 				submittedAtLabel: formatTimeCompact(entry.submittedAt),
-				verdict: githubVerdict(entry.verdict, t),
+				verdict: githubVerdict(
+					externalReviewVerdict(entry.verdict, reviewer?.links.length ?? 0, resolvedReviewer?.links.length ?? 0),
+					t,
+				),
 			};
 		});
 		for (const reviewer of unresolvedByReviewer.values()) {
@@ -1926,7 +1929,7 @@ function MergedReviewsSection({
 				reviewUrl: reviewer.reviewUrl,
 				submittedAt: "",
 				submittedAtLabel: "",
-				verdict: githubVerdict("none", t),
+				verdict: githubVerdict(externalReviewVerdict("none", reviewer.links.length, 0), t),
 			});
 		}
 		for (const reviewer of resolvedByReviewer.values()) {
@@ -1950,7 +1953,7 @@ function MergedReviewsSection({
 				reviewUrl: reviewer.reviewUrl,
 				submittedAt: "",
 				submittedAtLabel: "",
-				verdict: githubVerdict("none", t),
+				verdict: githubVerdict(externalReviewVerdict("none", 0, reviewer.links.length), t),
 			});
 		}
 		return {
@@ -2400,6 +2403,15 @@ function githubVerdict(verdict: string, t: TFunction): { label: string; tone: "n
 		default:
 			return { label: t("inspector.review.commented"), tone: "neutral" };
 	}
+}
+
+/* External reviewers (e.g. an AI bot posting PR threads) often never vote, so
+   a decisive vote wins, otherwise their threads decide: any unresolved means
+   changes requested, all resolved means passed. */
+function externalReviewVerdict(vote: string, unresolved: number, resolved: number): string {
+	if (vote === "approved" || vote === "changes_requested") return vote;
+	if (unresolved > 0) return "changes_requested";
+	return resolved > 0 ? "approved" : vote;
 }
 
 /* The reviews view is assembled from two queries that live in different

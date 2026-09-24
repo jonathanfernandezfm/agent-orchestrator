@@ -185,7 +185,11 @@ func summarizeReview(pr domain.PullRequest, comments []domain.PullRequestComment
 	isBot := map[string]bool{}
 	resolvedIsBot := map[string]bool{}
 	for _, c := range comments {
-		if c.IsBot {
+		// Bot comments count only when anchored to a file and line — the same
+		// rule that decides which bot findings are forwarded to the worker —
+		// so external AI reviewers show up while status chatter stays hidden.
+		// Resolution is judged below, so the anchor test ignores it.
+		if !domain.IsActionableReviewComment(false, c.IsBot, c.File, c.Line) {
 			continue
 		}
 		reviewer := strings.TrimSpace(c.Author)

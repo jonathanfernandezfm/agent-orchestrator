@@ -2612,7 +2612,7 @@ describe("SessionInspector summary reviews", () => {
     expect(screen.getByText("Earlier-pass comment.")).toBeInTheDocument();
     expect(screen.getAllByText("Current-pass comment.")).toHaveLength(1);
 
-    await userEvent.click(screen.getByRole("button", { name: /maya.*Commented/i }));
+    await userEvent.click(screen.getByRole("button", { name: /maya.*Changes requested/i }));
     expect(screen.getByText("Legacy external comment.")).toBeInTheDocument();
     expect(screen.getAllByText("Current-pass comment.")).toHaveLength(1);
     expect(screen.getAllByText("Earlier-pass comment.")).toHaveLength(1);
@@ -2658,7 +2658,7 @@ describe("SessionInspector summary reviews", () => {
       />,
     );
     await openReviewsSection();
-    await userEvent.click(await screen.findByRole("button", { name: /maya.*Commented/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /maya.*Changes requested/i }));
     await userEvent.click(screen.getByRole("button", { name: "Comment actions" }));
     await userEvent.click(screen.getByRole("button", { name: "View in file" }));
 
@@ -2810,7 +2810,7 @@ describe("SessionInspector summary reviews", () => {
       screen.queryByTestId("github-inline-comments"),
     ).not.toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole("button", { name: /maya.*Commented/i }),
+      screen.getByRole("button", { name: /maya.*Changes requested/i }),
     );
     const comments = screen.getByTestId("github-inline-comments");
     expect(comments).toHaveTextContent("Open comments · 2");
@@ -2982,6 +2982,50 @@ describe("SessionInspector summary reviews", () => {
     expect(
       screen.getByRole("button", { name: "Asked for re-review" }),
     ).toBeDisabled();
+  });
+
+  it("derives pass/fail for external reviewers without a vote from their comment threads", async () => {
+    const previous = getMock.getMockImplementation()!;
+    getMock.mockImplementation(async (path: string, opts?: unknown) => {
+      if (path === "/api/v1/sessions/{sessionId}/pr") {
+        return {
+          data: {
+            prs: [
+              prSummary(3, "open", {
+                review: {
+                  decision: "review_required",
+                  hasUnresolvedHumanComments: false,
+                  reviews: [],
+                  unresolvedBy: [
+                    {
+                      reviewerId: "open-bot",
+                      count: 1,
+                      isBot: true,
+                      links: [{ body: "Open bot finding.", file: "a.ts", line: 3, url: "https://example.com/open", autoInjectReview: true }],
+                    },
+                  ],
+                  resolvedBy: [
+                    {
+                      reviewerId: "done-bot",
+                      count: 1,
+                      isBot: true,
+                      links: [{ body: "Fixed bot finding.", file: "b.ts", line: 7, url: "https://example.com/done", autoInjectReview: true }],
+                    },
+                  ],
+                },
+              }),
+            ],
+          },
+        };
+      }
+      return previous(path, opts);
+    });
+
+    renderWithQuery(<SessionInspector session={session([pr(3, "open")])} />);
+    await openReviewsSection();
+
+    expect(await screen.findByRole("button", { name: /open-bot.*Changes requested/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /done-bot.*Approved/i })).toBeInTheDocument();
   });
 
   it("marks SCM reviews and individual comments using their stored injection decision", async () => {

@@ -4574,7 +4574,7 @@ func TestListPRSummariesExposesReviewSummariesButKeepsRawLogsAndCommentBodiesPri
 	}
 	stList.comments[prURL] = []domain.PullRequestComment{
 		{Author: "reviewer-a", ReviewID: "4876751117", File: "main.go", Line: 12, Body: "raw body must stay private", URL: "https://github.com/acme/repo/pull/7#discussion_r1", AutoInjectReview: false},
-		{Author: "ci-bot", File: "main.go", Line: 13, Body: "bot body", URL: "https://github.com/acme/repo/pull/7#discussion_r2", IsBot: true},
+		{Author: "ci-bot", Body: "bot status chatter", URL: "https://github.com/acme/repo/pull/7#discussion_r2", IsBot: true},
 		{Author: "reviewer-a", File: "main.go", Line: 14, Body: "resolved body", URL: "https://github.com/acme/repo/pull/7#discussion_r4", Resolved: true},
 		{Author: "reviewer-a", File: "test.go", Line: 22, Body: "another raw body", URL: "https://github.com/acme/repo/pull/7#discussion_r3", AutoInjectReview: true},
 	}
@@ -4793,6 +4793,26 @@ func TestSummarizeReviewSurfacesSubmittedReviewSummaries(t *testing.T) {
 	}
 	if c := byReviewer["charlie"]; c.Verdict != domain.ReviewNone || c.Body != "non-blocking suggestion" || c.URL != "url-c" {
 		t.Fatalf("charlie entry = %+v, want commented review with its body", c)
+	}
+}
+
+func TestSummarizeReviewIncludesAnchoredBotComments(t *testing.T) {
+	comments := []domain.PullRequestComment{
+		{Author: "ai-reviewer", File: "a.go", Line: 3, Body: "open finding", URL: "u1", IsBot: true},
+		{Author: "ai-reviewer", File: "a.go", Line: 9, Body: "fixed finding", URL: "u2", IsBot: true, Resolved: true},
+		{Author: "ai-reviewer", Body: "summary chatter", URL: "u3", IsBot: true},
+	}
+
+	got := summarizeReview(domain.PullRequest{URL: "u"}, comments, nil, nil, false)
+
+	if len(got.UnresolvedBy) != 1 || !got.UnresolvedBy[0].IsBot || got.UnresolvedBy[0].Count != 1 || got.UnresolvedBy[0].Links[0].Body != "open finding" {
+		t.Fatalf("unresolved = %+v, want only the anchored open bot finding", got.UnresolvedBy)
+	}
+	if len(got.ResolvedBy) != 1 || !got.ResolvedBy[0].IsBot || got.ResolvedBy[0].Count != 1 || got.ResolvedBy[0].Links[0].Body != "fixed finding" {
+		t.Fatalf("resolved = %+v, want only the anchored resolved bot finding", got.ResolvedBy)
+	}
+	if got.HasUnresolvedHumanComments {
+		t.Fatal("bot findings must not count as unresolved human comments")
 	}
 }
 
