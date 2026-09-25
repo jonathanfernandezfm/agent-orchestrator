@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { aoBridge } from "../lib/bridge";
 import type { TerminalTarget } from "../types/terminal";
+import { DEFAULT_KEYBOARD_SOUND_PROFILE, isKeyboardSoundProfile, type KeyboardSoundProfile } from "../lib/keyboard-sounds";
 import type { FilesSource } from "../hooks/useSessionWorkspaceFiles";
 import {
 	applyDocumentBackgroundImage,
@@ -98,6 +99,9 @@ export type UiState = {
 	remoteHosts: boolean;
 	/** Copy the terminal selection to the clipboard on mouse-up, like native terminals. Default on. */
 	terminalCopyOnSelect: boolean;
+	/** Play a mechanical-keyboard sound on each key press. Default off. */
+	keyboardSoundsEnabled: boolean;
+	keyboardSoundProfile: KeyboardSoundProfile;
 	restartingProjectIds: ReadonlySet<string>;
 	// Projects whose initial orchestrator spawn (after import/clone) is still
 	// running in the background. The board renders a progress banner and gates
@@ -146,6 +150,8 @@ export type UiState = {
 	setDeveloperMode: (enabled: boolean) => void;
 	setRemoteHosts: (enabled: boolean) => void;
 	setTerminalCopyOnSelect: (enabled: boolean) => void;
+	setKeyboardSoundsEnabled: (enabled: boolean) => void;
+	setKeyboardSoundProfile: (profile: KeyboardSoundProfile) => void;
 	/** True while the restart-to-update confirmation is open. */
 	updateInstallPromptOpen: boolean;
 	openUpdateInstallPrompt: () => void;
@@ -199,6 +205,8 @@ const sidebarStorageKey = "ao.sidebar.open";
 const developerModeStorageKey = "ao.developerMode";
 const remoteHostsStorageKey = "ao.remoteHosts";
 const terminalCopyOnSelectStorageKey = "ao.terminalCopyOnSelect";
+const keyboardSoundsStorageKey = "ao.keyboardSounds";
+const keyboardSoundProfileStorageKey = "ao.keyboardSoundProfile";
 function getLocalStorage() {
 	if (typeof window === "undefined" || !window.localStorage) return null;
 	return window.localStorage;
@@ -218,6 +226,11 @@ function initialRemoteHosts() {
 
 function initialTerminalCopyOnSelect() {
 	return getLocalStorage()?.getItem(terminalCopyOnSelectStorageKey) !== "false";
+}
+
+function initialKeyboardSoundProfile(): KeyboardSoundProfile {
+	const stored = getLocalStorage()?.getItem(keyboardSoundProfileStorageKey);
+	return isKeyboardSoundProfile(stored) ? stored : DEFAULT_KEYBOARD_SOUND_PROFILE;
 }
 
 function syncDeveloperModeToUpdater(enabled: boolean): void {
@@ -255,6 +268,8 @@ export const useUiStore = create<UiState>((set, get) => ({
 	developerMode: initialDeveloperModeValue,
 	remoteHosts: initialRemoteHosts(),
 	terminalCopyOnSelect: initialTerminalCopyOnSelect(),
+	keyboardSoundsEnabled: getLocalStorage()?.getItem(keyboardSoundsStorageKey) === "true",
+	keyboardSoundProfile: initialKeyboardSoundProfile(),
 	restartingProjectIds: new Set<string>(),
 	provisioningProjectIds: new Set<string>(),
 	orchestratorReplacementErrors: {},
@@ -305,6 +320,14 @@ export const useUiStore = create<UiState>((set, get) => ({
 	setTerminalCopyOnSelect: (terminalCopyOnSelect) => {
 		getLocalStorage()?.setItem(terminalCopyOnSelectStorageKey, String(terminalCopyOnSelect));
 		set({ terminalCopyOnSelect });
+	},
+	setKeyboardSoundsEnabled: (keyboardSoundsEnabled) => {
+		getLocalStorage()?.setItem(keyboardSoundsStorageKey, String(keyboardSoundsEnabled));
+		set({ keyboardSoundsEnabled });
+	},
+	setKeyboardSoundProfile: (keyboardSoundProfile) => {
+		getLocalStorage()?.setItem(keyboardSoundProfileStorageKey, keyboardSoundProfile);
+		set({ keyboardSoundProfile });
 	},
 	updateInstallPromptOpen: false,
 	openUpdateInstallPrompt: () => set({ updateInstallPromptOpen: true }),

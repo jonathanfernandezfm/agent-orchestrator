@@ -8,6 +8,7 @@ import "./styles.css";
 import { queryClient } from "./lib/query-client";
 import { mergeUnreadNotification, unreadNotificationsQueryKey } from "./lib/notifications";
 import { requestSessionSound } from "./lib/session-sounds";
+import { startKeyboardSounds } from "./lib/keyboard-sounds";
 import { createAppRouter } from "./router";
 import { TelemetryBoundary } from "./components/TelemetryBoundary";
 import { CloudOnboardingGate } from "./components/CloudOnboardingGate";
@@ -19,6 +20,7 @@ import { appI18n } from "./i18n";
 import { useLocaleStore } from "./stores/locale-store";
 import { useSoundNotificationsStore } from "./stores/sound-notifications-store";
 import { useTelemetryPolicyStore } from "./stores/telemetry-policy-store";
+import { useUiStore } from "./stores/ui-store";
 
 const router = createAppRouter(queryClient);
 
@@ -29,6 +31,10 @@ aoBridge.telemetry.onClearQueues(clearRendererTelemetryQueues);
 // the speakers, since main has no audio output of its own.
 aoBridge.notifications.onPlaySound(() => {
 	requestSessionSound("attention");
+});
+startKeyboardSounds(() => {
+	const { keyboardSoundsEnabled, keyboardSoundProfile } = useUiStore.getState();
+	return keyboardSoundsEnabled ? keyboardSoundProfile : null;
 });
 aoBridge.telemetry.onPolicy((view) => applyRendererTelemetryPolicy(view.eventsEnabled && view.acknowledged && view.state === "applied"));
 

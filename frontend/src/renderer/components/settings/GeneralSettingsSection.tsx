@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ThemePreference, ThemeStyle } from "../../lib/theme";
+import { playKeySound, type KeyboardSoundProfile } from "../../lib/keyboard-sounds";
 import type { AppLocale } from "../../i18n";
 import { useLocaleStore } from "../../stores/locale-store";
 import { useSoundNotificationsStore } from "../../stores/sound-notifications-store";
@@ -204,6 +205,39 @@ const COLOR_THEME_OPTIONS = [
 	{ value: "solarized", label: "Solarized" },
 ] satisfies SettingsOption<ThemeStyle>[];
 
+const KEYBOARD_SOUND_OPTIONS = [
+	{ value: "clicky", label: "Clicky (Blue)" },
+	{ value: "tactile", label: "Tactile (Brown)" },
+	{ value: "linear", label: "Linear (Red)" },
+	{ value: "thock", label: "Thock" },
+	{ value: "typewriter", label: "Typewriter" },
+] satisfies SettingsOption<KeyboardSoundProfile>[];
+
+function KeyboardSoundsRow() {
+	const { t } = useTranslation();
+	const enabled = useUiStore((state) => state.keyboardSoundsEnabled);
+	const setEnabled = useUiStore((state) => state.setKeyboardSoundsEnabled);
+	const profile = useUiStore((state) => state.keyboardSoundProfile);
+	const setProfile = useUiStore((state) => state.setKeyboardSoundProfile);
+	return (
+		<SettingsRow label={t("settings.keyboardSounds")} description={t("settings.keyboardSounds.description")}>
+			<div className="flex items-center gap-1.5">
+				<SettingsOptionMenu
+					aria-label={t("settings.keyboardSounds.profile")}
+					disabled={!enabled}
+					value={profile}
+					options={KEYBOARD_SOUND_OPTIONS}
+					onChange={(next) => {
+						setProfile(next);
+						playKeySound(next, "a");
+					}}
+				/>
+				<Switch aria-label={t("settings.keyboardSounds")} checked={enabled} onCheckedChange={setEnabled} />
+			</div>
+		</SettingsRow>
+	);
+}
+
 export function GeneralSettingsSection({
 	titleHidden,
 }: {
@@ -318,6 +352,7 @@ export function GeneralSettingsSection({
 						}}
 					/>
 				</SettingsRow>
+				<KeyboardSoundsRow />
 				{soundNotificationsSaveError ? (
 					<p role="alert" className="px-3 text-caption leading-4 text-error">
 						{t("settings.soundNotifications.saveFailed")}
