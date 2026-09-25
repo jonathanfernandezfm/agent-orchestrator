@@ -283,9 +283,12 @@ export function TaskComposer({
 			return data.project as Project;
 		},
 	});
-	// Only single-repo projects can start on an existing branch. Opening the
-	// composer fetches the remote, so branches created there show up here.
-	const supportsBranchPicker = !isCloudProject && !isStandalone && projectQuery.data?.kind === "single_repo";
+	// Repository-backed projects can start on an existing branch; a workspace
+	// lists the union of its repos' branches and uses that name in every repo.
+	// Opening the composer fetches the remotes, so branches created there show up here.
+	const projectKind = projectQuery.data?.kind;
+	const supportsBranchPicker =
+		!isCloudProject && !isStandalone && (projectKind === "single_repo" || projectKind === "workspace");
 	const branchesQuery = useQuery({
 		queryKey: ["project-branches", projectId],
 		enabled: supportsBranchPicker,

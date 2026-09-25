@@ -826,9 +826,10 @@ func resolveDefaultBranch(ctx context.Context, path string) string {
 // or offline remote falls back to already-fetched refs.
 const branchesFetchBudget = 30 * time.Second
 
-// Branches fetches the project's primary remote and lists its branches. Only
-// single-repo projects qualify: workspace projects branch every child repo at
-// once, and scratch projects have no repository.
+// Branches fetches the project's primary remote and lists its branches. A
+// workspace project lists the union across its root and ready child repos,
+// since a workspace session uses one branch name in every repo. Scratch
+// projects have no repository.
 func (m *Service) Branches(ctx context.Context, id domain.ProjectID) (BranchesResult, error) {
 	if err := validateProjectID(id); err != nil {
 		return BranchesResult{}, err
@@ -840,27 +841,57 @@ func (m *Service) Branches(ctx context.Context, id domain.ProjectID) (BranchesRe
 	if !ok || !row.ArchivedAt.IsZero() {
 		return BranchesResult{}, apierr.NotFound("PROJECT_NOT_FOUND", "Unknown project")
 	}
-	if row.Kind.WithDefault() != domain.ProjectKindSingleRepo {
-		return BranchesResult{}, apierr.Invalid("PROJECT_BRANCHES_UNSUPPORTED", "Only single-repository projects can start a task on an existing branch", nil)
+	kind := row.Kind.WithDefault()
+	if kind != domain.ProjectKindSingleRepo && kind != domain.ProjectKindWorkspace {
+		return BranchesResult{}, apierr.Invalid("PROJECT_BRANCHES_UNSUPPORTED", "Only repository-backed projects can start a task on an existing branch", nil)
+	}
+	repoPaths := []string{row.Path}
+	if kind == domain.ProjectKindWorkspace {
+		repos, err := m.store.ListWorkspaceRepos(ctx, row.ID)
+		if err != nil {
+			return BranchesResult{}, apierr.Internal("PROJECT_LOAD_FAILED", "Failed to load workspace repositories")
+		}
+		for _, repo := range repos {
+			if repo.GitStatus != domain.GitStatusNeedsInit {
+				repoPaths = append(repoPaths, filepath.Join(row.Path, filepath.FromSlash(repo.RelativePath)))
+			}
+		}
 	}
 	remoteCtx, cancel := context.WithTimeout(ctx, branchesFetchBudget)
 	defer cancel()
-	list, err := gitdefault.New("git", nil).RemoteBranches(ctx, remoteCtx, row.Path)
-	if err != nil {
-		if errors.Is(err, gitdefault.ErrUnresolved) {
-			return BranchesResult{}, apierr.Invalid("PROJECT_REMOTE_UNRESOLVED", strings.TrimPrefix(err.Error(), gitdefault.ErrUnresolved.Error()+": "), nil)
+	// Fetch every repo concurrently so a workspace costs one fetch budget, not one per repo.
+	lists := make([]gitdefault.RemoteBranchList, len(repoPaths))
+	errs := make([]error, len(repoPaths))
+	var wg sync.WaitGroup
+	for i, repoPath := range repoPaths {
+		wg.Go(func() { lists[i], errs[i] = gitdefault.New("git", nil).RemoteBranches(ctx, remoteCtx, repoPath) })
+	}
+	wg.Wait()
+	result := BranchesResult{Branches: []string{}}
+	seen := make(map[string]bool)
+	for i, list := range lists {
+		if err := errs[i]; err != nil {
+			if errors.Is(err, gitdefault.ErrUnresolved) {
+				return BranchesResult{}, apierr.Invalid("PROJECT_REMOTE_UNRESOLVED", strings.TrimPrefix(err.Error(), gitdefault.ErrUnresolved.Error()+": "), nil)
+			}
+			m.logger.Warn("project branches: list failed", "projectID", id, "repoPath", repoPaths[i], "error", err)
+			return BranchesResult{}, apierr.Internal("PROJECT_BRANCHES_FAILED", "Failed to list project branches")
 		}
-		m.logger.Warn("project branches: list failed", "projectID", id, "error", err)
-		return BranchesResult{}, apierr.Internal("PROJECT_BRANCHES_FAILED", "Failed to list project branches")
+		if list.FetchErr != nil {
+			m.logger.Warn("project branches: fetch failed; listing cached refs", "projectID", id, "repoPath", repoPaths[i], "error", list.FetchErr)
+			result.Stale = true
+		}
+		if result.Remote == "" {
+			result.Remote = list.Remote
+		}
+		for _, branch := range list.Branches {
+			if !seen[branch] {
+				seen[branch] = true
+				result.Branches = append(result.Branches, branch)
+			}
+		}
 	}
-	if list.FetchErr != nil {
-		m.logger.Warn("project branches: fetch failed; listing cached refs", "projectID", id, "error", list.FetchErr)
-	}
-	branches := list.Branches
-	if branches == nil {
-		branches = []string{}
-	}
-	return BranchesResult{Remote: list.Remote, Branches: branches, Stale: list.FetchErr != nil}, nil
+	return result, nil
 }
 
 // Remove stops live project sessions, reclaims safe managed workspaces, then

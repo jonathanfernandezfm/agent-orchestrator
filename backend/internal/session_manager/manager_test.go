@@ -4735,6 +4735,35 @@ func TestSpawn_ExplicitBranchIsFetchedFromRootRemote(t *testing.T) {
 	}
 }
 
+func TestSpawn_ExplicitBranchIsFetchedFromEveryWorkspaceRepo(t *testing.T) {
+	m, st, _, ws := newManager()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Kind: domain.ProjectKindWorkspace, Config: testRoleAgents()}
+	st.workspaceRepo["mer"] = []domain.WorkspaceRepoRecord{
+		{Name: "api", RelativePath: "api", GitStatus: domain.GitStatusReady},
+		{Name: "web", RelativePath: "web", GitStatus: domain.GitStatusReady},
+	}
+
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Branch: "feature/123-shared"}); err != nil {
+		t.Fatal(err)
+	}
+
+	api, web := filepath.Join("/repo/mer", "api"), filepath.Join("/repo/mer", "web")
+	want := []fetchDefaultBranchCall{
+		{repoPath: "/repo/mer", remote: "origin", branch: "main", baseRef: "refs/remotes/origin/main"},
+		{repoPath: api, remote: "origin", branch: "main", baseRef: "refs/remotes/origin/main"},
+		{repoPath: web, remote: "origin", branch: "main", baseRef: "refs/remotes/origin/main"},
+		{repoPath: "/repo/mer", remote: "origin", branch: "feature/123-shared", baseRef: "refs/remotes/origin/feature/123-shared"},
+		{repoPath: api, remote: "origin", branch: "feature/123-shared", baseRef: "refs/remotes/origin/feature/123-shared"},
+		{repoPath: web, remote: "origin", branch: "feature/123-shared", baseRef: "refs/remotes/origin/feature/123-shared"},
+	}
+	if got := ws.fetches; !reflect.DeepEqual(got, want) {
+		t.Fatalf("fetches = %#v, want %#v", got, want)
+	}
+	if got, want := ws.lastProjectCfg.Branch, "feature/123-shared"; got != want {
+		t.Fatalf("workspace branch = %q, want %q", got, want)
+	}
+}
+
 func TestSpawn_SlashDefaultBranchWithoutKnownRemoteFetchesFromOrigin(t *testing.T) {
 	m, st, _, ws := newManager()
 	cfg := testRoleAgents()

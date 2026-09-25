@@ -1392,20 +1392,27 @@ func (m *Manager) refreshDefaultBranchesBestEffort(ctx context.Context, project 
 			)
 		}
 	}
-	root := targets[0].resolved
-	if requestedBranch = strings.TrimSpace(requestedBranch); requestedBranch != "" && root.Remote != "" &&
-		requestedBranch != root.Branch && project.Kind.WithDefault() == domain.ProjectKindSingleRepo {
-		requested := ports.WorkspaceDefaultBranch{
-			Remote:  root.Remote,
-			Branch:  requestedBranch,
-			BaseRef: "refs/remotes/" + root.Remote + "/" + requestedBranch,
+	// Workspace sessions use one branch name in every repository, so the
+	// requested branch is fetched from each repo's remote: children where it
+	// exists remotely seed from it, the rest branch off their default.
+	requestedBranch = strings.TrimSpace(requestedBranch)
+	for _, target := range targets {
+		if requestedBranch == "" || target.resolved.Remote == "" || requestedBranch == target.resolved.Branch {
+			continue
 		}
-		// A branch that exists only locally is a normal case, so a failed fetch
-		// is informational: the adapter falls back to local refs as before.
-		if err := refresher.FetchDefaultBranch(fetchCtx, targets[0].repoPath, requested); err != nil {
+		requested := ports.WorkspaceDefaultBranch{
+			Remote:  target.resolved.Remote,
+			Branch:  requestedBranch,
+			BaseRef: "refs/remotes/" + target.resolved.Remote + "/" + requestedBranch,
+		}
+		// A branch that exists only locally (or only in some workspace repos) is
+		// a normal case, so a failed fetch is informational: the adapter falls
+		// back to local refs as before.
+		if err := refresher.FetchDefaultBranch(fetchCtx, target.repoPath, requested); err != nil {
 			m.logger.Debug("spawn: requested branch fetch failed; continuing with local refs",
 				"projectID", project.ID,
-				"remote", root.Remote,
+				"repoPath", target.repoPath,
+				"remote", target.resolved.Remote,
 				"branch", requestedBranch,
 				"error", err,
 			)

@@ -664,6 +664,37 @@ describe("TaskComposer", () => {
 		);
 	});
 
+	it("starts a workspace task on a branch fetched from its repos", async () => {
+		h.get.mockImplementation(async (path: string) => {
+			if (path.includes("/models")) {
+				return { data: { agent: "codex", selectionMode: "text", models: [], allowCustom: true } };
+			}
+			if (path === "/api/v1/projects/{id}/branches") {
+				return { data: { remote: "origin", branches: ["feature/12345-shared", "main"] } };
+			}
+			return { data: { status: "ok", project: { kind: "workspace", config: {} } } };
+		});
+		h.post.mockResolvedValueOnce({ data: { workerId: "sess-ws-branch" } });
+
+		render(
+			<Wrap>
+				<TaskComposer projectId="proj-1" onCreated={vi.fn()} />
+			</Wrap>,
+		);
+
+		await waitForTaskReady();
+		fireEvent.click(await screen.findByRole("combobox", { name: "Branch" }));
+		fireEvent.click(await screen.findByRole("option", { name: "feature/12345-shared" }));
+		fireEvent.click(startTask());
+
+		await waitFor(() =>
+			expect(h.post).toHaveBeenCalledWith(
+				"/api/v1/orchestrators/delegate",
+				expect.objectContaining({ body: expect.objectContaining({ branch: "feature/12345-shared" }) }),
+			),
+		);
+	});
+
 	it("hides the branch picker for projects that cannot start on an existing branch", async () => {
 		render(
 			<Wrap>

@@ -2281,3 +2281,51 @@ func TestEmptyCloneOnboardingCreatesFirstWorkspace(t *testing.T) {
 		})
 	}
 }
+
+func TestManager_BranchesListsWorkspaceChildBranchesOnce(t *testing.T) {
+	configureCommitter(t)
+	ctx := context.Background()
+	store, err := sqlitetest.Open(t.TempDir())
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	m := project.New(store)
+	parent := t.TempDir()
+	remotes := t.TempDir()
+	for _, child := range []struct{ name, only string }{{"api", "feature/api-only"}, {"web", "feature/web-only"}} {
+		origin := filepath.Join(remotes, child.name+".git")
+		repo := gitRepoWithCommitWithOrigin(t, filepath.Join(parent, child.name), origin)
+		for _, args := range [][]string{
+			{"init", "--bare", origin},
+			{"-C", repo, "push", "origin", "main"},
+			// Created on the remotes only; the local clones have never fetched them.
+			{"-C", origin, "branch", "feature/shared", "main"},
+			{"-C", origin, "branch", child.only, "main"},
+		} {
+			if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %v (%s)", args, err, out)
+			}
+		}
+	}
+	if _, err := m.Add(ctx, project.AddInput{Path: parent, ProjectID: ptr("ws"), AsWorkspace: true}); err != nil {
+		t.Fatalf("Add workspace: %v", err)
+	}
+
+	got, err := m.Branches(ctx, "ws")
+	if err != nil {
+		t.Fatalf("Branches: %v", err)
+	}
+	count := map[string]int{}
+	for _, b := range got.Branches {
+		count[b]++
+	}
+	for _, want := range []string{"feature/shared", "feature/api-only", "feature/web-only", "main"} {
+		if count[want] != 1 {
+			t.Fatalf("branches = %#v, want %q exactly once", got.Branches, want)
+		}
+	}
+	if got.Stale || got.Remote != "origin" {
+		t.Fatalf("result = %#v, want fresh origin listing", got)
+	}
+}
