@@ -7,7 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./styles.css";
 import { queryClient } from "./lib/query-client";
 import { mergeUnreadNotification, unreadNotificationsQueryKey } from "./lib/notifications";
-import { playNotificationSound } from "./lib/notification-sound-player";
+import { requestSessionSound } from "./lib/session-sounds";
 import { createAppRouter } from "./router";
 import { TelemetryBoundary } from "./components/TelemetryBoundary";
 import { CloudOnboardingGate } from "./components/CloudOnboardingGate";
@@ -28,7 +28,7 @@ aoBridge.telemetry.onClearQueues(clearRendererTelemetryQueues);
 // Main decides *when* a notification sound plays; the renderer only supplies
 // the speakers, since main has no audio output of its own.
 aoBridge.notifications.onPlaySound(() => {
-	playNotificationSound(() => aoBridge.notifications.reportSoundFailure());
+	requestSessionSound("attention");
 });
 aoBridge.telemetry.onPolicy((view) => applyRendererTelemetryPolicy(view.eventsEnabled && view.acknowledged && view.state === "applied"));
 

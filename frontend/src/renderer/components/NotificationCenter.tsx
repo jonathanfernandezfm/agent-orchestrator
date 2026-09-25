@@ -28,6 +28,7 @@ import { useRestoreSession } from "../hooks/useRestoreSession";
 import { useWorkspaceQuery } from "../hooks/useWorkspaceQuery";
 import type { WorkspaceSummary } from "../types/workspace";
 import { aoBridge } from "../lib/bridge";
+import { startSessionSounds } from "../lib/session-sounds";
 import { formatTimeCompact } from "../lib/format-time";
 import {
 	createNotificationsTransport,
@@ -173,6 +174,8 @@ export function NotificationRuntime() {
 		() => createNotificationsTransport(queryClient, getVisibleAgentSessionId).connect(),
 		[getVisibleAgentSessionId, queryClient],
 	);
+
+	useEffect(() => startSessionSounds(queryClient, () => routeSessionIdRef.current), [queryClient]);
 
 	// Keep the OS launcher badge in sync here rather than in NotificationCenter:
 	// NotificationRuntime is always mounted in the shell, whereas the notification

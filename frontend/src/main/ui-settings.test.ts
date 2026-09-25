@@ -61,6 +61,7 @@ describe("ui-settings", () => {
 		expect(await readUiSettings(dir)).toEqual({
 			locale: "ja",
 			soundNotificationsEnabled: false,
+			ambientSoundsEnabled: true,
 			terminalShell: { kind: "git-bash" },
 		});
 	});

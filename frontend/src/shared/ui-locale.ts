@@ -18,6 +18,8 @@ export interface UiSettings {
 	locale: AppLocale;
 	/** Whether attention-worthy notifications (needs input, ready to merge) also play a sound. */
 	soundNotificationsEnabled: boolean;
+	/** Whether quiet FYI sounds play for status changes, received messages, and merges. Gated by soundNotificationsEnabled. */
+	ambientSoundsEnabled: boolean;
 	/** Windows shell used for new standalone terminal panes. */
 	terminalShell: TerminalShellPreference;
 }
@@ -27,6 +29,7 @@ export const DEFAULT_TERMINAL_SHELL: TerminalShellPreference = { kind: "auto" };
 export const DEFAULT_UI_SETTINGS: UiSettings = {
 	locale: DEFAULT_LOCALE,
 	soundNotificationsEnabled: true,
+	ambientSoundsEnabled: true,
 	terminalShell: DEFAULT_TERMINAL_SHELL,
 };
 
@@ -58,9 +61,12 @@ export function coerceUiSettings(raw: unknown): UiSettings {
 		typeof record.soundNotificationsEnabled === "boolean"
 			? record.soundNotificationsEnabled
 			: DEFAULT_UI_SETTINGS.soundNotificationsEnabled;
+	const ambientSoundsEnabled =
+		typeof record.ambientSoundsEnabled === "boolean" ? record.ambientSoundsEnabled : DEFAULT_UI_SETTINGS.ambientSoundsEnabled;
 	return {
 		locale: coerceLocale(record.locale),
 		soundNotificationsEnabled,
+		ambientSoundsEnabled,
 		terminalShell: coerceTerminalShell(record.terminalShell),
 	};
 }

@@ -1243,6 +1243,8 @@
 	"settings.sessionInterface.unavailable": "Applies to new sessions. No installed agent supports chat yet.",
 	"settings.soundNotifications": "Sound notifications",
 	"settings.soundNotifications.saveFailed": "Could not save the sound notifications preference.",
+	"settings.ambientSounds": "Status sounds",
+	"settings.ambientSounds.description": "Quiet sounds when an agent changes status, a message or review comment arrives, or a PR merges.",
 	"settings.project.trackerIntake": "Tracker intake",
 	"settings.project.workspaceRepos": "Workspace repos",
 	"settings.project.worktrees": "Worktrees",

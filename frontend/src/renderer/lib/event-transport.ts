@@ -3,6 +3,7 @@ import { aoBridge } from "./bridge";
 import { getApiBaseUrl, hasTrustedApiBaseUrl, subscribeApiBaseUrl } from "./api-client";
 import { setEventsConnectionState } from "./events-connection";
 import { computeSseRetryDelayMs } from "./sse-backoff";
+import { requestSessionSound } from "./session-sounds";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { sessionScmSummaryQueryKey } from "../hooks/useSessionScmSummary";
 import { conversationQueryKey, conversationQueryRoot } from "../hooks/useConversation";
@@ -22,6 +23,7 @@ export type EventTransport = {
 };
 
 const INVALIDATE_WINDOW_MS = 150;
+const REVIEW_SOUND_MAX_AGE_MS = 60_000;
 // EventSource.CLOSED, referenced numerically so test stubs without the static
 // constants still work.
 const EVENTSOURCE_CLOSED = 2;
@@ -165,7 +167,17 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 							sessionId?: unknown;
 							type?: unknown;
 							payload?: unknown;
+							createdAt?: unknown;
 						};
+						// A new review comment is worth a quiet blip, but not the backlog
+						// the daemon replays after a reconnect.
+						if (
+							decoded.type === "pr_review_thread_added" &&
+							typeof decoded.createdAt === "string" &&
+							Date.now() - Date.parse(decoded.createdAt) < REVIEW_SOUND_MAX_AGE_MS
+						) {
+							requestSessionSound("received");
+						}
 						// The SSE endpoint sends the complete durable CDC event. Routing
 						// fields such as sessionId live on that envelope, while trigger-built
 						// details such as conversationId live inside its payload. Do not

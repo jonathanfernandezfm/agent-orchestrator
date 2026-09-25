@@ -36,6 +36,7 @@ describe("shared UI locale schema", () => {
 		expect(DEFAULT_UI_SETTINGS).toEqual({
 			locale: "en",
 			soundNotificationsEnabled: true,
+			ambientSoundsEnabled: true,
 			terminalShell: { kind: "auto" },
 		});
 		expect(coerceUiSettings({ locale: "en", soundNotificationsEnabled: false })).toEqual({
@@ -56,6 +57,11 @@ describe("shared UI locale schema", () => {
 		expect(coerceUiSettings({ locale: "en", soundNotificationsEnabled: null })).toEqual({
 			...DEFAULT_UI_SETTINGS,
 		});
+	});
+
+	it("accepts a persisted ambientSoundsEnabled boolean and defaults anything else to true", () => {
+		expect(coerceUiSettings({ ambientSoundsEnabled: false }).ambientSoundsEnabled).toBe(false);
+		expect(coerceUiSettings({ ambientSoundsEnabled: "false" }).ambientSoundsEnabled).toBe(true);
 	});
 
 	it("accepts supported terminal shells and normalizes custom paths", () => {

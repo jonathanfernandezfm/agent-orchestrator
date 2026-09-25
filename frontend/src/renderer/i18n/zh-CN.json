@@ -1090,6 +1090,8 @@
 	"settings.sessionInterface.unavailable": "适用于新会话。目前没有已安装的代理支持聊天。",
 	"settings.soundNotifications": "声音通知",
 	"settings.soundNotifications.saveFailed": "无法保存声音通知偏好设置。",
+	"settings.ambientSounds": "状态提示音",
+	"settings.ambientSounds.description": "当代理状态变化、收到消息或评审评论、或 PR 合并时播放轻柔的提示音。",
 	"settings.project.trackerIntake": "议题接入",
 	"settings.project.workspaceRepos": "工作区仓库",
 	"settings.project.worktrees": "工作树",

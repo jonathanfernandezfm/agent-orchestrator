@@ -222,6 +222,8 @@ export function GeneralSettingsSection({
 	const setSoundNotificationsEnabled = useSoundNotificationsStore((state) => state.setEnabled);
 	const soundNotificationsSaving = useSoundNotificationsStore((state) => state.saving);
 	const soundNotificationsSaveError = useSoundNotificationsStore((state) => state.saveError);
+	const ambientSoundsEnabled = useSoundNotificationsStore((state) => state.ambientEnabled);
+	const setAmbientSoundsEnabled = useSoundNotificationsStore((state) => state.setAmbientEnabled);
 	const developerMode = useUiStore((state) => state.developerMode);
 	const setDeveloperMode = useUiStore((state) => state.setDeveloperMode);
 	const remoteHosts = useUiStore((state) => state.remoteHosts);
@@ -303,6 +305,16 @@ export function GeneralSettingsSection({
 						disabled={soundNotificationsSaving}
 						onCheckedChange={(next) => {
 							void setSoundNotificationsEnabled(next);
+						}}
+					/>
+				</SettingsRow>
+				<SettingsRow label={t("settings.ambientSounds")} description={t("settings.ambientSounds.description")}>
+					<Switch
+						aria-label={t("settings.ambientSounds")}
+						checked={soundNotificationsEnabled && ambientSoundsEnabled}
+						disabled={soundNotificationsSaving || !soundNotificationsEnabled}
+						onCheckedChange={(next) => {
+							void setAmbientSoundsEnabled(next);
 						}}
 					/>
 				</SettingsRow>

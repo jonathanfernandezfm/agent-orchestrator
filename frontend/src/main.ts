@@ -2432,14 +2432,15 @@ ipcMain.handle(
 		// "Already looking" = the window has focus, or the renderer reports the
 		// prompt itself is on screen (`watched`). Visual signals are skipped then.
 		const looking = mainWindow.isFocused() || notification.watched === true;
-		// On Linux the sound ignores that guess: Wayland gives apps no reliable
+		// The sound only yields to `watched`, not to focus: with AO focused on
+		// another session the user still has to hear that this one needs them.
+		// On Linux it ignores even that guess: Wayland gives apps no reliable
 		// visibility, so a window parked on another workspace still reports
-		// focused/visible and would otherwise stay silent. macOS and Windows
-		// report focus accurately and keep the quieter behaviour.
+		// focused/visible and would otherwise stay silent.
 		const playsSound =
 			shouldSignalAttention(notification.type) &&
 			soundNotificationsEnabled &&
-			(process.platform === "linux" || !looking);
+			(process.platform === "linux" || notification.watched !== true);
 		if (playsSound) playNotificationSound();
 		if (looking) return;
 		// OS toast: a native banner the user can click to jump straight back to the

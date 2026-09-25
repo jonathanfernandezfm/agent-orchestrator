@@ -11,12 +11,12 @@ import notificationSoundUrl from "../assets/notification.mp3";
  * the asset cannot be decoded or `play()` rejects, `onFailure` runs (once) so
  * main can fall back to the system beep for this notification.
  */
-export function playNotificationSound(onFailure: () => void): void {
+export function playNotificationSound(onFailure: () => void, src: string = notificationSoundUrl): void {
 	if (typeof Audio === "undefined") {
 		onFailure();
 		return;
 	}
-	const audio = new Audio(notificationSoundUrl);
+	const audio = new Audio(src);
 	let failed = false;
 	const fail = () => {
 		if (failed) return;

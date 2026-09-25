@@ -1108,6 +1108,8 @@
 	"settings.sessionInterface.unavailable": "새 세션에 적용됩니다. 아직 채팅을 지원하는 설치된 에이전트가 없습니다.",
 	"settings.soundNotifications": "소리 알림",
 	"settings.soundNotifications.saveFailed": "소리 알림 설정을 저장할 수 없습니다.",
+	"settings.ambientSounds": "상태 소리",
+	"settings.ambientSounds.description": "에이전트 상태가 바뀌거나 메시지 또는 리뷰 댓글이 도착하거나 PR이 병합될 때 조용한 소리를 냅니다.",
 	"settings.project.trackerIntake": "트래커 인테이크",
 	"settings.project.workspaceRepos": "워크스페이스 저장소",
 	"settings.project.worktrees": "워크트리",
