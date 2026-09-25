@@ -26,7 +26,19 @@ type legacyACPTransport struct {
 	mu      sync.Mutex
 	pending map[string]chan legacyACPResponse
 	models  *legacySessionModelState
+
+	// updateSlots bounds session/update notifications forwarded to the SDK but
+	// not yet handled. The SDK closes the connection once 1024 notifications are
+	// queued, and a persistent host replays a long turn's whole journal in one
+	// burst on reconnect, so forwarding must wait for the handler to catch up.
+	updateSlots chan struct{}
+	sdkReader   *io.PipeReader
+	closed      chan struct{}
+	closeOnce   sync.Once
 }
+
+// maxUnhandledUpdates stays well under the SDK's 1024-notification queue.
+const maxUnhandledUpdates = 256
 
 type lockedWriteCloser struct {
 	mu    sync.Mutex
@@ -62,11 +74,14 @@ type legacyACPResponse struct {
 
 func newLegacyACPTransport(stdin io.WriteCloser, stdout io.Reader) (*legacyACPTransport, io.WriteCloser, io.Reader) {
 	writer := &lockedWriteCloser{inner: stdin}
-	transport := &legacyACPTransport{
-		writer:  writer,
-		pending: make(map[string]chan legacyACPResponse),
-	}
 	sdkReader, sdkWriter := io.Pipe()
+	transport := &legacyACPTransport{
+		writer:      writer,
+		pending:     make(map[string]chan legacyACPResponse),
+		updateSlots: make(chan struct{}, maxUnhandledUpdates),
+		sdkReader:   sdkReader,
+		closed:      make(chan struct{}),
+	}
 	go transport.forward(stdout, sdkWriter)
 	return transport, writer, sdkReader
 }
@@ -76,6 +91,13 @@ func (t *legacyACPTransport) forward(source io.Reader, destination *io.PipeWrite
 	for {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 && !t.intercept(line) {
+			if isSessionUpdate(line) {
+				select {
+				case t.updateSlots <- struct{}{}:
+				case <-t.closed:
+					return
+				}
+			}
 			if _, writeErr := destination.Write(line); writeErr != nil {
 				_ = destination.CloseWithError(writeErr)
 				return
@@ -90,6 +112,45 @@ func (t *legacyACPTransport) forward(source io.Reader, destination *io.PipeWrite
 			return
 		}
 	}
+}
+
+// isSessionUpdate reports whether the SDK will hand line to SessionUpdate. It
+// mirrors the SDK's own decode and validation so a rejected frame never takes an
+// update slot that no handler would release.
+func isSessionUpdate(line []byte) bool {
+	var envelope struct {
+		ID     *json.RawMessage `json:"id"`
+		Method string           `json:"method"`
+		Params json.RawMessage  `json:"params"`
+	}
+	if json.Unmarshal(line, &envelope) != nil || envelope.ID != nil || envelope.Method != acpsdk.ClientMethodSessionUpdate {
+		return false
+	}
+	var params acpsdk.SessionNotification
+	return json.Unmarshal(envelope.Params, &params) == nil && params.Validate() == nil
+}
+
+// updateHandled releases the slot taken when a session/update was forwarded.
+func (t *legacyACPTransport) updateHandled() {
+	if t == nil {
+		return
+	}
+	select {
+	case <-t.updateSlots:
+	default:
+	}
+}
+
+// close stops forwarding once the SDK connection has ended, so the forwarder
+// no longer waits on a handler or a pipe that nothing will ever drain.
+func (t *legacyACPTransport) close() {
+	if t == nil {
+		return
+	}
+	t.closeOnce.Do(func() {
+		close(t.closed)
+		_ = t.sdkReader.Close()
+	})
 }
 
 func (t *legacyACPTransport) intercept(line []byte) bool {

@@ -983,6 +983,13 @@ func (c *conversation) AcknowledgeProviderEvent(ctx context.Context, providerEve
 
 func (c *conversation) watchConnection() {
 	<-c.conn.Done()
+	c.legacyWire.close()
+	if c.proc != nil && c.proc.terminate != nil {
+		// The SDK can end the connection on its own (e.g. a notification queue
+		// overflow) without closing the socket. A persistent host blocks writing
+		// to an attachment nobody reads, and refuses every later attach, so detach.
+		_ = c.proc.stop()
+	}
 	c.mu.Lock()
 	detaching := c.detaching
 	c.mu.Unlock()

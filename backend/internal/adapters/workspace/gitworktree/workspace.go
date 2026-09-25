@@ -1818,6 +1818,13 @@ func (w *Workspace) enableWorktreeConfig(ctx context.Context, repo string) error
 		}
 		return fmt.Errorf("gitworktree: inspect repository metadata: %w", err)
 	}
+	// Read first: the write takes .git/config.lock, and restart reconciliation
+	// restores every session of a repo concurrently, so an unconditional write
+	// fails sessions that lose the race even though the extension is already on.
+	get := aoprocess.CommandContext(ctx, w.binary, "-C", repo, "config", "--bool", "--get", "extensions.worktreeConfig")
+	if out, err := get.Output(); err == nil && strings.TrimSpace(string(out)) == "true" {
+		return nil
+	}
 	args := []string{"-C", repo, "config", "extensions.worktreeConfig", "true"}
 	cmd := aoprocess.CommandContext(ctx, w.binary, args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
