@@ -677,6 +677,39 @@ describe("ProjectSettingsForm", () => {
 		expect(putMock.mock.calls[1]?.[1]?.body.config.postCreate).toBeUndefined();
 	});
 
+	it("loads and saves linked files one path per line", async () => {
+		mockProject({
+			id: "proj-1",
+			name: "Project One",
+			kind: "single_repo",
+			path: "/repo/project-one",
+			repo: "git@github.com:acme/project-one.git",
+			defaultBranch: "main",
+			config: {
+				worker: { agent: "codex" },
+				orchestrator: { agent: "claude-code" },
+				symlinks: [".env"],
+			},
+		});
+
+		renderSettings("proj-1", undefined, "workflow");
+
+		const files = await screen.findByRole("textbox", { name: "Linked files" });
+		expect(files).toHaveValue(".env");
+
+		await userEvent.type(files, "{Enter}{Enter}  config/local.xml  ");
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(1));
+		expect(putMock.mock.calls[0]?.[1]?.body.config.symlinks).toEqual([".env", "config/local.xml"]);
+
+		await userEvent.clear(files);
+		submitSettings();
+
+		await waitFor(() => expect(putMock).toHaveBeenCalledTimes(2));
+		expect(putMock.mock.calls[1]?.[1]?.body.config.symlinks).toBeUndefined();
+	});
+
 	it("keeps the automatic default branch unpinned when saving other settings", async () => {
 		mockProject({
 			id: "proj-1",

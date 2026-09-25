@@ -141,6 +141,7 @@ function SettingsBody({
 		defaultBranch: config.defaultBranch ?? DEFAULT_BRANCH_AUTO,
 		sessionPrefix: config.sessionPrefix ?? "",
 		postCreate: (config.postCreate ?? []).join("\n"),
+		symlinks: (config.symlinks ?? []).join("\n"),
 		workerAgent: config.worker?.agent ?? "",
 		orchestratorAgent: config.orchestrator?.agent ?? "",
 		workerModel: config.worker?.agentConfig?.model ?? config.agentConfig?.model ?? "",
@@ -235,7 +236,8 @@ function SettingsBody({
 								? undefined
 								: form.defaultBranch || undefined,
 						sessionPrefix: form.sessionPrefix || undefined,
-						postCreate: splitCommandLines(form.postCreate),
+						postCreate: splitLines(form.postCreate),
+						symlinks: splitLines(form.symlinks),
 						worker: {
 							...config.worker,
 							agent: form.workerAgent,
@@ -647,21 +649,22 @@ function SettingsBody({
 									}),
 								}}
 							/>
-							<ProjectSettingsSection title={t("settings.project.setupScript")} grouped>
-								<div className="settings-row-bar">
-									<textarea
-										id="postCreate"
-										aria-label={t("settings.project.setupScript")}
-										value={form.postCreate}
-										onChange={(e) => setForm((f) => ({ ...f, postCreate: e.target.value }))}
-										rows={4}
-										spellCheck={false}
-										placeholder={t("settings.project.setupScriptPlaceholder")}
-										className="w-full resize-y rounded-lg border border-(--color-border-settings-input) bg-(--color-bg-settings-input) px-2.5 py-2 font-mono text-xs text-(--color-text-settings-input) outline-none placeholder:text-(--color-text-settings-placeholder) focus-visible:ring-1 focus-visible:ring-primary"
-									/>
-								</div>
-								<p className="px-1 text-xs leading-row text-settings-muted">{t("settings.project.setupScriptHelp")}</p>
-							</ProjectSettingsSection>
+							<LineListSection
+								id="postCreate"
+								title={t("settings.project.setupScript")}
+								help={t("settings.project.setupScriptHelp")}
+								placeholder={t("settings.project.setupScriptPlaceholder")}
+								value={form.postCreate}
+								onChange={(postCreate) => setForm((f) => ({ ...f, postCreate }))}
+							/>
+							<LineListSection
+								id="symlinks"
+								title={t("settings.project.linkedFiles")}
+								help={t("settings.project.linkedFilesHelp")}
+								placeholder={t("settings.project.linkedFilesPlaceholder")}
+								value={form.symlinks}
+								onChange={(symlinks) => setForm((f) => ({ ...f, symlinks }))}
+							/>
 						</>
 					) : (
 						<p className="px-1 text-xs text-settings-muted">{t("settings.project.workflow")}</p>
@@ -891,9 +894,45 @@ function scratchSupportedConfig(config: ProjectConfig): ProjectConfig {
 	return supported;
 }
 
-// splitCommandLines maps the setup-script textarea to postCreate: one command
-// per non-blank line, each run separately by the daemon.
-function splitCommandLines(text: string): string[] | undefined {
+// LineListSection edits a string-list config field (postCreate, symlinks) as a
+// textarea with one entry per line.
+function LineListSection({
+	id,
+	title,
+	help,
+	placeholder,
+	value,
+	onChange,
+}: {
+	id: string;
+	title: string;
+	help: string;
+	placeholder: string;
+	value: string;
+	onChange: (value: string) => void;
+}) {
+	return (
+		<ProjectSettingsSection title={title} grouped>
+			<div className="settings-row-bar">
+				<textarea
+					id={id}
+					aria-label={title}
+					value={value}
+					onChange={(e) => onChange(e.target.value)}
+					rows={4}
+					spellCheck={false}
+					placeholder={placeholder}
+					className="w-full resize-y rounded-lg border border-(--color-border-settings-input) bg-(--color-bg-settings-input) px-2.5 py-2 font-mono text-xs text-(--color-text-settings-input) outline-none placeholder:text-(--color-text-settings-placeholder) focus-visible:ring-1 focus-visible:ring-primary"
+				/>
+			</div>
+			<p className="px-1 text-xs leading-row text-settings-muted">{help}</p>
+		</ProjectSettingsSection>
+	);
+}
+
+// splitLines maps a LineListSection textarea to its config list: one entry per
+// non-blank, trimmed line; empty clears the field.
+function splitLines(text: string): string[] | undefined {
 	const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
 	return lines.length > 0 ? lines : undefined;
 }
