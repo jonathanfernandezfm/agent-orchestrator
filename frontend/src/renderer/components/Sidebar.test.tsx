@@ -977,6 +977,15 @@ describe("Sidebar", () => {
 		expect(await screen.findByRole("dialog", { name: "Add a project" })).toBeInTheDocument();
 	});
 
+	it("opens the all sessions board from the Taskboard button", async () => {
+		const user = userEvent.setup();
+		renderSidebar();
+
+		await user.click(screen.getByRole("button", { name: "Taskboard" }));
+
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/sessions" });
+	});
+
 	it("keeps the create-project shortcut available when there are no projects", async () => {
 		renderSidebar({ workspaces: [] });
 

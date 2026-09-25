@@ -8,9 +8,11 @@ type NewTaskDialogProps = {
 	projectId?: string;
 	onCreated: (sessionId: string) => void;
 	onOpenChange: (open: boolean) => void;
+	projectOptions?: { value: string; label: string }[];
+	onProjectChange?: (projectId: string) => void;
 };
 
-export function NewTaskDialog({ open, projectId, onCreated, onOpenChange }: NewTaskDialogProps) {
+export function NewTaskDialog({ open, projectId, onCreated, onOpenChange, projectOptions, onProjectChange }: NewTaskDialogProps) {
 	const { t } = useTranslation();
 	return (
 		<Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -26,6 +28,8 @@ export function NewTaskDialog({ open, projectId, onCreated, onOpenChange }: NewT
 					<TaskComposer
 						projectId={projectId}
 						autoFocusTitle
+						projectOptions={projectOptions}
+						onProjectChange={onProjectChange}
 						onCreated={(sessionId) => {
 							onCreated(sessionId);
 							onOpenChange(false);

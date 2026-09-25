@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
+import { useWorkspaceQuery, workspaceQueryKey } from "../hooks/useWorkspaceQuery";
 import { useUiStore } from "../stores/ui-store";
 import { NewTaskDialog } from "./NewTaskDialog";
 import { STANDALONE_WORKSPACE_ID } from "../types/workspace";
@@ -18,6 +18,15 @@ export function GlobalNewTaskDialog() {
 	const newTaskRequest = useUiStore((state) => state.newTaskRequest);
 	const [open, setOpen] = useState(false);
 	const [projectId, setProjectId] = useState<string | undefined>(undefined);
+	// A request without a project (sidebar "Create") lets the user pick one.
+	const [pickProject, setPickProject] = useState(false);
+	const workspaces = useWorkspaceQuery().data;
+	const provisioningProjectIds = useUiStore((state) => state.provisioningProjectIds);
+	const projectOptions = pickProject
+		? (workspaces ?? [])
+			.filter((workspace) => !workspace.folderMissing && !provisioningProjectIds.has(workspace.id))
+			.map((workspace) => ({ value: workspace.id, label: workspace.name }))
+		: undefined;
 	const lastNonce = useRef(0);
 
 	useEffect(() => {
@@ -28,6 +37,7 @@ export function GlobalNewTaskDialog() {
 		// not replay the ignored request when the user later closes the dialog.
 		if (open) return;
 		setProjectId(newTaskRequest.projectId);
+		setPickProject(newTaskRequest.projectId === undefined);
 		setOpen(true);
 	}, [newTaskRequest, open]);
 
@@ -50,6 +60,8 @@ export function GlobalNewTaskDialog() {
 			projectId={projectId}
 			onCreated={(sessionId) => void handleCreated(sessionId)}
 			onOpenChange={setOpen}
+			projectOptions={projectOptions}
+			onProjectChange={setProjectId}
 		/>
 	);
 }

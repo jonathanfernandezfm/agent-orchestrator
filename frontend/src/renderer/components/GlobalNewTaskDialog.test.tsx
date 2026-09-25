@@ -12,6 +12,16 @@ vi.mock("@tanstack/react-router", () => ({
 	useNavigate: () => navigateMock,
 }));
 
+vi.mock("../hooks/useWorkspaceQuery", () => ({
+	workspaceQueryKey: ["workspaces"],
+	useWorkspaceQuery: () => ({
+		data: [
+			{ id: "proj-7", name: "Seven", path: "/seven", sessions: [] },
+			{ id: "proj-gone", name: "Gone", path: "/gone", folderMissing: true, sessions: [] },
+		],
+	}),
+}));
+
 // Probe stand-in: surfaces the props the real dialog would receive, preserves a
 // draft while open, and exposes the real onOpenChange boundary.
 vi.mock("./NewTaskDialog", () => ({
@@ -20,11 +30,15 @@ vi.mock("./NewTaskDialog", () => ({
 		projectId,
 		onCreated,
 		onOpenChange,
+		projectOptions,
+		onProjectChange,
 	}: {
 		open: boolean;
 		projectId?: string;
 		onCreated: (id: string) => void;
 		onOpenChange: (open: boolean) => void;
+		projectOptions?: { value: string; label: string }[];
+		onProjectChange?: (id: string) => void;
 	}) => {
 		const [draft, setDraft] = useState("");
 		return open ? (
@@ -33,6 +47,11 @@ vi.mock("./NewTaskDialog", () => ({
 					task
 					<input aria-label="task" value={draft} onChange={(event) => setDraft(event.currentTarget.value)} />
 				</label>
+				{projectOptions?.map((option) => (
+					<button key={option.value} type="button" onClick={() => onProjectChange?.(option.value)}>
+						pick {option.label}
+					</button>
+				))}
 				<button type="button" onClick={() => onCreated("sess-9")}>
 					create
 				</button>
@@ -130,5 +149,35 @@ describe("GlobalNewTaskDialog", () => {
 			useUiStore.getState().requestNewTask("proj-8");
 		});
 		expect(await screen.findByTestId("new-task-dialog")).toHaveAttribute("data-project", "proj-8");
+	});
+
+	it("lets the user pick the project when the request names none", async () => {
+		const user = userEvent.setup();
+		renderDialog();
+
+		act(() => {
+			useUiStore.getState().requestNewTask();
+		});
+		const dialog = await screen.findByTestId("new-task-dialog");
+		expect(dialog).not.toHaveAttribute("data-project");
+		expect(screen.queryByRole("button", { name: "pick Gone" })).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: "pick Seven" }));
+		expect(dialog).toHaveAttribute("data-project", "proj-7");
+
+		await user.click(screen.getByRole("button", { name: "create" }));
+		expect(navigateMock).toHaveBeenCalledWith({
+			to: "/projects/$projectId/sessions/$sessionId",
+			params: { projectId: "proj-7", sessionId: "sess-9" },
+		});
+	});
+
+	it("hides the project picker for a project-scoped request", async () => {
+		renderDialog();
+		act(() => {
+			useUiStore.getState().requestNewTask("proj-7");
+		});
+		await screen.findByTestId("new-task-dialog");
+		expect(screen.queryByRole("button", { name: "pick Seven" })).not.toBeInTheDocument();
 	});
 });

@@ -99,6 +99,10 @@ export type TaskComposerProps = {
 	onDirtyChange?: (dirty: boolean) => void;
 	onSubmittingChange?: (submitting: boolean) => void;
 	autoFocusTitle?: boolean;
+	// When set, the composer shows a project picker so the caller need not
+	// preselect one (the sidebar "Create" entry).
+	projectOptions?: { value: string; label: string }[];
+	onProjectChange?: (projectId: string) => void;
 };
 
 export function TaskComposer({
@@ -107,6 +111,8 @@ export function TaskComposer({
 	onDirtyChange,
 	onSubmittingChange,
 	autoFocusTitle,
+	projectOptions,
+	onProjectChange,
 }: TaskComposerProps) {
 	const { t } = useTranslation();
 	const taskPlaceholder = useMemo(() => {
@@ -507,8 +513,12 @@ export function TaskComposer({
 	useEffect(() => () => onSubmittingChange?.(false), [onSubmittingChange]);
 	useEffect(() => () => clearAttachments(), [clearAttachments]);
 
+	const projectPicker = projectOptions && onProjectChange ? (
+		<TaskProjectPicker disabled={isSubmitting} options={projectOptions} value={projectId ?? ""} onChange={onProjectChange} />
+	) : null;
 	const executionContext = projectId ? (
 		<>
+			{projectPicker}
 			<ExecutionContextView
 				activeAgent={selectedAgentLabel || undefined}
 				activeRole="worker"
@@ -536,7 +546,7 @@ export function TaskComposer({
 				/>
 			) : null}
 		</>
-	) : undefined;
+	) : (projectPicker ?? undefined);
 
 	const submitTask = async (
 		brief: string,
@@ -747,6 +757,36 @@ function TaskEffortPicker({ disabled, label, onChange, options, value }: TaskCom
 			)}
 			onChange={(nextEffort) => onChange(nextEffort === "__default__" ? "" : nextEffort)}
 		/>
+	);
+}
+
+function TaskProjectPicker({
+	disabled,
+	options,
+	value,
+	onChange,
+}: {
+	disabled: boolean;
+	options: { value: string; label: string }[];
+	value: string;
+	onChange: (value: string) => void;
+}) {
+	const { t } = useTranslation();
+	const label = t("newTask.project");
+	return (
+		<div className="flex h-8 min-w-0 items-center gap-2 border-b border-border/50 px-4 text-xs text-passive">
+			<span className="shrink-0">{label}</span>
+			<SearchablePicker
+				ariaLabel={label}
+				placeholder={t("newTask.projectSelect")}
+				searchPlaceholder={t("newTask.projectSearch")}
+				value={value}
+				onChange={onChange}
+				options={options}
+				disabled={disabled}
+				className="h-6 w-auto min-w-0 max-w-80 border-transparent bg-transparent px-1.5 text-xs hover:border-transparent hover:bg-muted"
+			/>
+		</div>
 	);
 }
 

@@ -19,6 +19,7 @@ import {
 	Download,
 	Folder,
 	FolderOpen,
+	LayoutDashboard,
 	LogIn,
 	LogOut,
 	MoreVertical,
@@ -450,6 +451,7 @@ function useSelection() {
 		select: (state) => state.location.pathname,
 	});
 	const goHome = useCallback(() => void navigate({ to: "/" }), [navigate]);
+	const goAllSessions = useCallback(() => void navigate({ to: "/sessions" }), [navigate]);
 	const goGlobalSettings = useCallback(() => openGlobalSettings(), [openGlobalSettings]);
 	const goConnectMobile = useCallback(() => openGlobalSettings("mobile"), [openGlobalSettings]);
 	const goSettings = useCallback((projectId: string) => openProjectSettings(projectId), [openProjectSettings]);
@@ -472,9 +474,11 @@ function useSelection() {
 	);
 	return useMemo(() => ({
 		isHome: pathname === "/",
+		isAllSessions: pathname === "/sessions",
 		activeProjectId: params.projectId,
 		activeSessionId: params.sessionId,
 		goHome,
+		goAllSessions,
 		// Settings is a modal — open it in place so the current page (session
 		// terminal, board, etc.) stays underneath.
 		goGlobalSettings,
@@ -482,7 +486,7 @@ function useSelection() {
 		goSettings,
 		goProject,
 		goSession,
-	}), [goConnectMobile, goGlobalSettings, goHome, goProject, goSession, goSettings, params.projectId, params.sessionId, pathname]);
+	}), [goAllSessions, goConnectMobile, goGlobalSettings, goHome, goProject, goSession, goSettings, params.projectId, params.sessionId, pathname]);
 }
 
 // Colour tracks the session's board section, preserving SCM state while the
@@ -541,6 +545,7 @@ export function Sidebar({
 	const daemonStatus = useShellMaybe()?.daemonStatus ?? null;
 	const commandPaletteEnabled = useCommandPaletteEnabled();
 	const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
+	const requestNewTask = useUiStore((s) => s.requestNewTask);
 	const existingProjectPaths = useMemo(
 		() => workspaces
 			.filter((workspace) => workspace.kind !== STANDALONE_PROJECT_KIND)
@@ -833,7 +838,7 @@ export function Sidebar({
 					className={cn(
 						"group/brand flex w-full shrink-0 items-center gap-1.5 rounded-md px-0.5 text-left",
 						"group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pb-2",
-						commandPaletteEnabled ? "pb-2" : "pb-3",
+						"pb-2",
 					)}
 					data-sidebar-brand=""
 					onClick={() => selection.goHome()}
@@ -885,15 +890,15 @@ export function Sidebar({
 
 			{/* Keep Search + section chrome fixed above the scrollable sidebar content. */}
 			<div className="flex shrink-0 flex-col gap-0 px-2 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-1.5">
-				{commandPaletteEnabled ? (
-					<SidebarGroup className="p-0 pb-4">
-						<SidebarGroupContent>
-							<SidebarMenu className="gap-0.5 group-data-[collapsible=icon]:gap-1">
-								<SidebarSearchButton onOpen={() => setCommandPaletteOpen(true)} />
-							</SidebarMenu>
-						</SidebarGroupContent>
-					</SidebarGroup>
-				) : null}
+				<SidebarGroup className="p-0 pb-4">
+					<SidebarGroupContent>
+						<SidebarMenu className="gap-0.5 group-data-[collapsible=icon]:gap-1">
+							{commandPaletteEnabled ? <SidebarSearchButton onOpen={() => setCommandPaletteOpen(true)} /> : null}
+							<SidebarNavButton icon={LayoutDashboard} label={t("shell.taskboard")} active={selection.isAllSessions} onClick={selection.goAllSessions} />
+							<SidebarNavButton icon={Plus} label={t("shell.create")} onClick={() => requestNewTask()} />
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
 
 				{/* Pinned — collapsible; hidden when empty. */}
 				{pinnedSessions.length > 0 && (
@@ -2961,6 +2966,41 @@ function SidebarSearchButton({ onOpen }: { onOpen: () => void }) {
 				<kbd className="sidebar-expanded-chrome ml-auto shrink-0 rounded-sm border border-border-strong/60 bg-surface/50 px-1.5 py-0.5 font-mono text-caption leading-none text-muted-foreground/80 group-data-[collapsible=icon]:hidden">
 					{commandPaletteShortcutLabel}
 				</kbd>
+			</SidebarMenuButton>
+		</SidebarMenuItem>
+	);
+}
+
+function SidebarNavButton({
+	icon: Icon,
+	label,
+	active = false,
+	onClick,
+}: {
+	icon: typeof Plus;
+	label: string;
+	active?: boolean;
+	onClick: () => void;
+}) {
+	const { state } = useSidebar();
+	const isCollapsed = state === "collapsed";
+	return (
+		<SidebarMenuItem className="group-data-[collapsible=icon]:mb-0">
+			<SidebarMenuButton
+				aria-label={label}
+				isActive={active}
+				onClick={onClick}
+				tooltip={isCollapsed ? label : undefined}
+				className={cn(
+					"h-8 gap-2 rounded-lg px-2.5 text-sm font-normal text-muted-foreground",
+					"hover:bg-interactive-hover! hover:text-foreground active:bg-interactive-hover! [&_svg]:size-icon-sm!",
+					"group-data-[collapsible=icon]:size-control-board! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-lg group-data-[collapsible=icon]:p-0!",
+				)}
+			>
+				<Icon strokeWidth={1.75} aria-hidden="true" />
+				<span className="sidebar-expanded-chrome min-w-0 flex-1 truncate text-left leading-none group-data-[collapsible=icon]:hidden">
+					{label}
+				</span>
 			</SidebarMenuButton>
 		</SidebarMenuItem>
 	);
