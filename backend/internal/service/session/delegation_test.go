@@ -116,6 +116,39 @@ func TestDelegatedTaskTitles(t *testing.T) {
 	}
 }
 
+func TestBranchTaskDisplayName(t *testing.T) {
+	for in, want := range map[string]string{
+		"feature/#594404-spike-eval-cases-kba-proposal": "594404: spike eval cases kba proposal",
+		"fix/login_redirect-loop":                       "login redirect loop",
+		"main":                                          "main",
+		"feature/#594404":                               "594404",
+		"feature/":                                      "",
+		"":                                              "",
+	} {
+		if got := branchTaskDisplayName(in); got != want {
+			t.Errorf("branchTaskDisplayName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestDelegateTaskOnBranchUsesBranchTitle(t *testing.T) {
+	st := newFakeStore()
+	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}
+	cmd := &fakeCommander{}
+
+	if _, err := (&Service{store: st, manager: cmd, runBackground: runInline}).DelegateTask(
+		context.Background(), DelegateTaskInput{ProjectID: "ao", Brief: "do it", Branch: "feature/#1-x-y"},
+	); err != nil {
+		t.Fatalf("DelegateTask: %v", err)
+	}
+	if cmd.spawnedCfg.DisplayName != "1: x y" {
+		t.Fatalf("DisplayName = %q, want %q", cmd.spawnedCfg.DisplayName, "1: x y")
+	}
+	if len(cmd.backgroundCalls) != 0 {
+		t.Fatalf("branch task ran title refinement: %#v", cmd.backgroundCalls)
+	}
+}
+
 func TestDelegateTaskStartsPromptlessWorkerWithoutGeneratingTitle(t *testing.T) {
 	st := newFakeStore()
 	st.projects["ao"] = domain.ProjectRecord{ID: "ao"}

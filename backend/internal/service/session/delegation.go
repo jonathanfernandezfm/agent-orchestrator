@@ -64,13 +64,17 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 		prompt = ""
 	}
 
+	displayName := branchTaskDisplayName(in.Branch)
+	if displayName == "" {
+		displayName = delegatedTaskDisplayName(in.Brief)
+	}
 	effort, effortOverride := optionalTuningValue(in.Effort)
 	worker, _, _, err := s.manager.Spawn(ctx, ports.SpawnConfig{
 		ProjectID:   in.ProjectID,
 		Kind:        domain.KindWorker,
 		Harness:     in.RequestedAgent,
 		Prompt:      prompt,
-		DisplayName: delegatedTaskDisplayName(in.Brief),
+		DisplayName: displayName,
 		AgentConfig: ports.AgentConfig{
 			Model:       strings.TrimSpace(in.Model),
 			Effort:      effort,
@@ -88,7 +92,8 @@ func (s *Service) DelegateTask(ctx context.Context, in DelegateTaskInput) (Deleg
 	// The worker spawn is the commit point. Background title
 	// generation must never hold the new-task response open. A promptless worker
 	// stays idle with its provisional title until the user supplies instructions.
-	if prompt != "" {
+	// A branch-derived title is already the user's chosen name, so keep it.
+	if prompt != "" && in.Branch == "" {
 		s.refineDelegatedTaskTitleInBackground(worker.ID, in)
 	}
 	return DelegateTaskOutcome{WorkerID: worker.ID}, nil
@@ -169,6 +174,21 @@ func delegatedTaskDisplayName(brief string) string {
 		return title
 	}
 	return strings.TrimSpace(string([]rune(title)[:delegatedTaskTitleLimit]))
+}
+
+// branchTaskDisplayName names a task after its branch, e.g.
+// "feature/#594404-spike-eval-cases" -> "594404: spike eval cases".
+func branchTaskDisplayName(branch string) string {
+	name := branch[strings.LastIndex(branch, "/")+1:]
+	words := strings.FieldsFunc(strings.TrimLeft(name, "#"), func(r rune) bool { return r == '-' || r == '_' })
+	if len(words) == 0 {
+		return ""
+	}
+	title := strings.Join(words, " ")
+	if len(words) > 1 && strings.IndexFunc(words[0], func(r rune) bool { return !unicode.IsDigit(r) }) < 0 {
+		title = words[0] + ": " + strings.Join(words[1:], " ")
+	}
+	return delegatedTaskDisplayName(title)
 }
 
 func generatedTaskTitle(raw string) string {
