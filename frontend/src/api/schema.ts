@@ -2680,6 +2680,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/usage/claude": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the signed-in Claude subscription's rate-limit usage windows */
+        get: operations["getClaudeUsage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/usage/sessions": {
         parameters: {
             query?: never;
@@ -2948,6 +2965,27 @@ export interface components {
             prs: components["schemas"]["SessionPRFacts"][];
             sessionId: string;
             takenOverFrom: string[];
+        };
+        ClaudeUsageResponse: {
+            /** Format: date-time */
+            checkedAt: string;
+            /** @enum {string} */
+            state: "available" | "signed_out" | "unavailable";
+            windows: components["schemas"]["ClaudeUsageWindowResponse"][];
+        };
+        ClaudeUsageWindowResponse: {
+            /** @description Provider limit group, e.g. session or weekly. */
+            group: string;
+            /** @description Provider limit kind, e.g. session, weekly_all, weekly_scoped. */
+            kind: string;
+            /** @description Model display name for model-scoped limits. */
+            model?: string;
+            /** Format: date-time */
+            resetsAt?: null | string;
+            /** @description Provider severity, e.g. normal. */
+            severity: string;
+            /** Format: double */
+            usedPercent: number;
         };
         CleanupSessionsResponse: {
             alreadyGone: string[];
@@ -14813,6 +14851,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    getClaudeUsage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClaudeUsageResponse"];
                 };
             };
             /** @description Not Implemented */

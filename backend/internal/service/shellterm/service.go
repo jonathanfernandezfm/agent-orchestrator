@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -265,6 +266,44 @@ func (s *Service) OpenShellTerminal(ctx context.Context, in OpenShellTerminalInp
 		workingDir: workingDir,
 		title:      nextShellTerminalTitle(openTerminals),
 	})
+}
+
+// OpenSetupTerminal runs a project's postCreate commands in a "Setup" tab
+// scoped to a freshly spawned session, so slow setup (e.g. `mvn install`) shows
+// its progress there instead of holding the spawn request open. The shell stays
+// open afterwards so the output, and any failure, remains readable.
+func (s *Service) OpenSetupTerminal(ctx context.Context, sessionID domain.SessionID, projectID domain.ProjectID, workspacePath string, commands []string) error {
+	release, err := s.acquireSessionGate(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	defer release()
+	_, err = s.openTerminal(ctx, openTerminalConfig{
+		argv:       setupTerminalArgv(runtime.GOOS, commands),
+		env:        s.pinnedEnv(),
+		projectID:  projectID,
+		sessionID:  sessionID,
+		workingDir: workspacePath,
+		title:      "Setup",
+	})
+	return err
+}
+
+// setupTerminalArgv chains the commands so the first failure stops the rest,
+// each in its own subshell (a `cd` in one does not leak into the next), then
+// hands the tab over to the user's shell.
+func setupTerminalArgv(goos string, commands []string) []string {
+	if goos == "windows" {
+		return []string{"cmd", "/k", strings.Join(commands, " && ")}
+	}
+	parts := make([]string, len(commands))
+	for i, command := range commands {
+		parts[i] = "(\n" + command + "\n)"
+	}
+	script := strings.Join(parts, " && ") +
+		` && printf '\n[ao] Setup finished.\n' || printf '\n[ao] Setup failed (exit %s).\n' "$?"` +
+		"\nexec \"${SHELL:-/bin/sh}\""
+	return []string{"/bin/sh", "-c", script}
 }
 
 const authWorkspaceDirectoryName = "auth-workspace"

@@ -57,20 +57,26 @@ export function getAttentionZoneViewForZone(
 	return getPortableAttentionZoneViewForZone(zone, translator(t));
 }
 
-export type SessionStatusDotView = {
+export type SessionStatusIndicatorView = {
+	/** Board-section status the icon is picked from; `closed` is a PR closed without merge. */
+	status: SessionStatus | "closed";
+	/** Text-colour tone class; icons paint with `currentColor`. */
 	className: string;
-	breathe: boolean;
+	/** Raw agent activity: the indicator becomes a spinner while true. */
+	working: boolean;
+	label: string;
 };
 
-// The session dot carries two independent signals. Colour comes from the board
-// section represented by the SCM state, which survives a running agent —
-// `status` is activity-first, so it collapses to `working` the moment an agent
-// wakes and would otherwise take every pull request tone with it. Merged keeps
-// its split-section tone instead of sharing Ready to merge's tone.
+// The session indicator carries two independent signals. Tone and icon come
+// from the board section represented by the SCM state, which survives a
+// running agent — `status` is activity-first, so it collapses to `working` the
+// moment an agent wakes and would otherwise take every pull request tone with
+// it. Merged keeps its split-section tone instead of sharing Ready to merge's.
 //
-// Motion stays on raw agent activity. A no-PR idle session is the exception to
-// the preserved section colour: when its agent starts working it blinks blue.
-export function getSessionStatusDotView(
+// Motion stays on raw agent activity: a working agent swaps the icon for a
+// spinner in the section tone. A no-PR idle session is the exception to the
+// preserved section tone: when its agent starts working it spins blue.
+export function getSessionStatusIndicatorView(
 	session: {
 		activity?: SessionActivity | null;
 		displayStatus?: string;
@@ -78,23 +84,29 @@ export function getSessionStatusDotView(
 		status: SessionStatus;
 	},
 	t: TFunction = appI18n.t,
-): SessionStatusDotView {
+): SessionStatusIndicatorView {
 	const working = isAgentActivityWorking(session.activity);
-	const closedWithoutMerge = session.displayStatus === "Closed without merge";
-	const sectionStatus: SessionStatus =
-		closedWithoutMerge ? "exited" : (session.scmStatus ?? session.status);
-	const toneStatus = sectionStatus === "idle" && working ? "working" : sectionStatus;
+	if (session.displayStatus === "Closed without merge") {
+		return {
+			status: "closed",
+			className: getSessionStatusView("exited", t).className,
+			working,
+			label: session.displayStatus,
+		};
+	}
+	const sectionStatus = session.scmStatus ?? session.status;
+	const toneStatus: SessionStatus = sectionStatus === "idle" && working ? "working" : sectionStatus;
+	const statusView = getSessionStatusView(toneStatus, t);
 	const className =
-		closedWithoutMerge
-			? getSessionStatusView("exited", t).dotClassName
-			: toneStatus === "idle" || toneStatus === "merged"
-				? getSessionStatusView(toneStatus, t).dotClassName
-				: getAttentionZoneView(toneStatus, t).dotClassName;
+		toneStatus === "idle" || toneStatus === "merged"
+			? statusView.className
+			: getAttentionZoneView(toneStatus, t).titleClassName;
+	const label =
+		working && toneStatus !== "working"
+			? `${getAgentActivityView(session.activity, t).label} · ${statusView.label}`
+			: statusView.label;
 
-	return {
-		className,
-		breathe: working,
-	};
+	return { status: toneStatus, className, working, label };
 }
 
 export function getKanbanColumnView(

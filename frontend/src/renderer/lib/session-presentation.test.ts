@@ -3,7 +3,7 @@ import {
 	attentionZone,
 	getAgentActivityView,
 	getAttentionZoneView,
-	getSessionStatusDotView,
+	getSessionStatusIndicatorView,
 	getSessionStatusView,
 	getSessionTimelinePillView,
 	isAgentActivityWorking,
@@ -110,26 +110,26 @@ describe("session presentation", () => {
 	});
 
 	it.each([
-		["idle", "bg-status-idle"],
-		["working", "bg-status-working"],
-		["needs_input", "bg-status-needs-you"],
-		["exited", "bg-status-needs-you"],
-		["no_signal", "bg-status-needs-you"],
-		["ci_failed", "bg-status-needs-you"],
-		["changes_requested", "bg-status-needs-you"],
-		["unknown", "bg-status-needs-you"],
-		["draft", "bg-status-in-review"],
-		["pr_open", "bg-status-in-review"],
-		["review_pending", "bg-status-in-review"],
-		["approved", "bg-status-ready"],
-		["mergeable", "bg-status-ready"],
-		["merged", "bg-status-merged"],
-		["terminated", "bg-status-terminated"],
-	] as const)("paints the %s session dot with its board-section tone", (status, dotClassName) => {
-		expect(getSessionStatusDotView(sessionWith({ status }))).toMatchObject({ className: dotClassName });
+		["idle", "text-status-idle"],
+		["working", "text-status-working"],
+		["needs_input", "text-status-needs-you"],
+		["exited", "text-status-needs-you"],
+		["no_signal", "text-status-needs-you"],
+		["ci_failed", "text-status-needs-you"],
+		["changes_requested", "text-status-needs-you"],
+		["unknown", "text-status-needs-you"],
+		["draft", "text-status-in-review"],
+		["pr_open", "text-status-in-review"],
+		["review_pending", "text-status-in-review"],
+		["approved", "text-status-ready"],
+		["mergeable", "text-status-ready"],
+		["merged", "text-status-merged"],
+		["terminated", "text-status-terminated-foreground"],
+	] as const)("paints the %s session indicator with its board-section tone", (status, dotClassName) => {
+		expect(getSessionStatusIndicatorView(sessionWith({ status }))).toMatchObject({ className: dotClassName });
 	});
 
-	it("prefers SCM state over runtime status for the dot tone", () => {
+	it("prefers SCM state over runtime status for the indicator tone", () => {
 		// A running agent drives status to `working`, which would erase every PR
 		// tone in the sidebar. SCM state wins so the row keeps saying "merged".
 		const merged = sessionWith({
@@ -138,36 +138,36 @@ describe("session presentation", () => {
 			activity: { state: "active", lastActivityAt: "" },
 		});
 
-		expect(getSessionStatusDotView(merged)).toEqual({ className: "bg-status-merged", breathe: true });
+		expect(getSessionStatusIndicatorView(merged)).toMatchObject({ className: "text-status-merged", working: true });
 	});
 
 	it("keeps board-section color while raw working activity starts the motion", () => {
 		const scmStatus = "mergeable" as const;
 
 		expect(
-			getSessionStatusDotView(sessionWith({ status: "idle", scmStatus, activity: { state: "idle", lastActivityAt: "" } })),
-		).toEqual({ className: "bg-status-ready", breathe: false });
+			getSessionStatusIndicatorView(sessionWith({ status: "idle", scmStatus, activity: { state: "idle", lastActivityAt: "" } })),
+		).toMatchObject({ className: "text-status-ready", working: false });
 		expect(
-			getSessionStatusDotView(
+			getSessionStatusIndicatorView(
 				sessionWith({ status: "working", scmStatus, activity: { state: "active", lastActivityAt: "" } }),
 			),
-		).toEqual({ className: "bg-status-ready", breathe: true });
+		).toMatchObject({ className: "text-status-ready", working: true });
 	});
 
-	it("uses a blinking blue dot when an idle-section session starts working", () => {
+	it("spins blue when an idle-section session starts working", () => {
 		expect(
-			getSessionStatusDotView(
+			getSessionStatusIndicatorView(
 				sessionWith({ status: "idle", activity: { state: "active", lastActivityAt: "" } }),
 			),
-		).toEqual({ className: "bg-status-working", breathe: true });
+		).toMatchObject({ className: "text-status-working", working: true });
 	});
 
 	it("paints a closed-without-merge session red", () => {
 		expect(
-			getSessionStatusDotView(
+			getSessionStatusIndicatorView(
 				sessionWith({ status: "idle", displayStatus: "Closed without merge" }),
 			),
-		).toEqual({ className: "bg-status-exited", breathe: false });
+		).toMatchObject({ status: "closed", className: "text-status-exited", working: false });
 	});
 
 	it("keeps activity indicator color independent from PR and CI presentation", () => {

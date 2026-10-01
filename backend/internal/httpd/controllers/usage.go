@@ -18,16 +18,39 @@ type UsageSummaryService interface {
 	Get(context.Context, domain.SessionID) (domain.SessionUsageSummary, error)
 }
 
+// ClaudeUsageReader reads the signed-in Claude subscription's usage windows.
+type ClaudeUsageReader interface {
+	SubscriptionUsage(context.Context) domain.ClaudeSubscriptionUsage
+}
+
 // UsageController owns compact dashboard usage routes.
 type UsageController struct {
-	Svc UsageSummaryService
-	Log *slog.Logger
+	Svc    UsageSummaryService
+	Claude ClaudeUsageReader
+	Log    *slog.Logger
 }
 
 // Register mounts usage routes on the supplied router.
 func (c *UsageController) Register(r chi.Router) {
 	r.Get("/usage/sessions", c.listSessions)
 	r.Get("/usage/sessions/{sessionId}", c.getSession)
+	r.Get("/usage/claude", c.getClaude)
+}
+
+func (c *UsageController) getClaude(w http.ResponseWriter, r *http.Request) {
+	if c.Claude == nil {
+		apispec.NotImplemented(w, r, "GET", "/api/v1/usage/claude")
+		return
+	}
+	usage := c.Claude.SubscriptionUsage(r.Context())
+	windows := make([]ClaudeUsageWindowResponse, 0, len(usage.Windows))
+	for _, window := range usage.Windows {
+		windows = append(windows, ClaudeUsageWindowResponse{
+			Kind: window.Kind, Group: window.Group, Model: window.Model,
+			UsedPercent: window.UsedPercent, Severity: window.Severity, ResetsAt: window.ResetsAt,
+		})
+	}
+	envelope.WriteJSON(w, http.StatusOK, ClaudeUsageResponse{State: usage.State, Windows: windows, CheckedAt: usage.CheckedAt})
 }
 
 func (c *UsageController) listSessions(w http.ResponseWriter, r *http.Request) {

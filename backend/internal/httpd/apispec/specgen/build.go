@@ -396,6 +396,8 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"ControllersEstimatedCostResponse":            "EstimatedCostResponse",
 	"ControllersCompactSessionUsageResponse":      "CompactSessionUsageResponse",
 	"ControllersListCompactSessionUsageResponse":  "ListCompactSessionUsageResponse",
+	"ControllersClaudeUsageResponse":              "ClaudeUsageResponse",
+	"ControllersClaudeUsageWindowResponse":        "ClaudeUsageWindowResponse",
 	"ControllersUsageTotalsResponse":              "UsageTotalsResponse",
 	"ControllersUsageModelResponse":               "UsageModelResponse",
 	"ControllersUsageHarnessResponse":             "UsageHarnessResponse",
@@ -793,6 +795,14 @@ func usageOperations() []operation {
 				{http.StatusOK, controllers.SessionUsageResponse{}},
 				{http.StatusNotFound, envelope.APIError{}},
 				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/usage/claude", id: "getClaudeUsage", tag: "usage",
+			summary: "Get the signed-in Claude subscription's rate-limit usage windows",
+			resps: []respUnit{
+				{http.StatusOK, controllers.ClaudeUsageResponse{}},
 				{http.StatusNotImplemented, envelope.APIError{}},
 			},
 		},

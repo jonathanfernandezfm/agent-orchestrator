@@ -272,6 +272,13 @@ type ShellTerminalCloser interface {
 	BeginSessionTeardown(ctx context.Context, id domain.SessionID) (release func(), err error)
 }
 
+// SetupTerminalOpener runs a project's postCreate commands in a terminal tab
+// scoped to the new session, so slow setup never holds the spawn request open.
+// Late-bound like ShellTerminalCloser.
+type SetupTerminalOpener interface {
+	OpenSetupTerminal(ctx context.Context, sessionID domain.SessionID, projectID domain.ProjectID, workspacePath string, commands []string) error
+}
+
 // HarnessUseGate coordinates session lifecycle operations with harness binary
 // replacement so a launch cannot observe a partially installed executable.
 type HarnessUseGate interface {
@@ -492,6 +499,7 @@ type Manager struct {
 	// under lock rather than through the constructor.
 	shellTerminalsMu sync.Mutex
 	shellTerminals   ShellTerminalCloser
+	setupTerminals   SetupTerminalOpener
 
 	terminalInputGateMu sync.Mutex
 	terminalInputGate   TerminalInputGate
@@ -564,6 +572,14 @@ func (m *Manager) SetShellTerminalCloser(closer ShellTerminalCloser) {
 	m.shellTerminalsMu.Lock()
 	defer m.shellTerminalsMu.Unlock()
 	m.shellTerminals = closer
+}
+
+// SetSetupTerminalOpener late-binds where postCreate commands run. Nil (the
+// test default) runs them detached in the background instead.
+func (m *Manager) SetSetupTerminalOpener(opener SetupTerminalOpener) {
+	m.shellTerminalsMu.Lock()
+	defer m.shellTerminalsMu.Unlock()
+	m.setupTerminals = opener
 }
 
 // SetTerminalInputGate late-binds the daemon's terminal mux after Session
@@ -999,9 +1015,9 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		return domain.SessionRecord{}, 0, 0, wrapSpawnStage(id, ErrWorkspaceCreate, err)
 	}
 
-	// Per-project workspace provisioning: symlink shared files, then run any
-	// post-create commands (e.g. `pnpm install`) before the agent launches.
-	if err := m.provisionWorkspace(ctx, project, ws.Path); err != nil {
+	// Per-project workspace provisioning: symlink shared files. Post-create
+	// commands (e.g. `mvn install`) start after launch, see startPostCreate.
+	if err := m.provisionWorkspace(project, ws.Path); err != nil {
 		m.rollbackSeedSpawnWorkspace(ctx, rec, ws, workspaceProject, false)
 		return domain.SessionRecord{}, 0, 0, wrapSpawnStage(id, ErrWorkspaceProvision, err)
 	}
@@ -1042,6 +1058,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 		if err != nil {
 			return domain.SessionRecord{}, 0, 0, err
 		}
+		m.startPostCreate(ctx, project, id, ws.Path)
 		return rec, promptBytes, systemPromptBytes, nil
 	}
 
@@ -1169,6 +1186,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (domain.Sess
 			return domain.SessionRecord{}, 0, 0, wrapSpawnStage(id, ErrSpawnDeliverPrompt, err)
 		}
 	}
+	m.startPostCreate(ctx, project, id, ws.Path)
 	rec, err = m.getRecord(ctx, id)
 	if err != nil {
 		return domain.SessionRecord{}, 0, 0, err
@@ -4943,15 +4961,42 @@ func HookPATH(executable func() (string, error), getenv func(string) string, pro
 	return agentlaunch.PinnedPATH(executable, getenv, projectEnv, dataDir)
 }
 
-// provisionWorkspace applies the project's per-workspace setup after the
-// worktree exists: symlink shared files from the project repo, then run any
-// post-create commands. Either failing aborts the spawn so a half-provisioned
-// workspace never launches an agent.
-func (m *Manager) provisionWorkspace(ctx context.Context, project domain.ProjectRecord, workspacePath string) error {
-	if err := applySymlinks(project.Path, workspacePath, project.Config.Symlinks); err != nil {
-		return err
+// provisionWorkspace symlinks shared files from the project repo into the new
+// worktree. A failure aborts the spawn.
+func (m *Manager) provisionWorkspace(project domain.ProjectRecord, workspacePath string) error {
+	return applySymlinks(project.Path, workspacePath, project.Config.Symlinks)
+}
+
+// startPostCreate kicks off the project's post-create commands once the agent
+// is up. They can take minutes (a full Maven build), far longer than the spawn
+// request may stay open, so they run in a Setup terminal tab the user can watch
+// while the agent starts. Without a terminal opener, or if opening one fails,
+// they run detached and a failure is only logged.
+func (m *Manager) startPostCreate(ctx context.Context, project domain.ProjectRecord, id domain.SessionID, workspacePath string) {
+	commands := make([]string, 0, len(project.Config.PostCreate))
+	for _, command := range project.Config.PostCreate {
+		if command = strings.TrimSpace(command); command != "" {
+			commands = append(commands, command)
+		}
 	}
-	return runPostCreate(ctx, workspacePath, project.Config.PostCreate)
+	if len(commands) == 0 {
+		return
+	}
+	m.shellTerminalsMu.Lock()
+	opener := m.setupTerminals
+	m.shellTerminalsMu.Unlock()
+	if opener != nil {
+		err := opener.OpenSetupTerminal(context.WithoutCancel(ctx), id, domain.ProjectID(project.ID), workspacePath, commands)
+		if err == nil {
+			return
+		}
+		m.logger.Warn("spawn: open setup terminal; running postCreate detached", "sessionID", id, "error", err)
+	}
+	go func() {
+		if err := runPostCreate(m.backgroundContext, workspacePath, commands); err != nil {
+			m.logger.Warn("spawn: postCreate failed", "sessionID", id, "error", err)
+		}
+	}()
 }
 
 // applySymlinks links each repo-relative path into the workspace. A source that

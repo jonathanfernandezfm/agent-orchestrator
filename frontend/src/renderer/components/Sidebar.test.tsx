@@ -51,6 +51,7 @@ const {
 	dragOvers,
 	dragStarts,
 	downloadUpdateMock,
+	footerGetMock,
 	getMock,
 	navigateMock,
 	mockParams,
@@ -73,6 +74,7 @@ const {
 		dragEnds: new Map<string, (event: { active: { id: string }; over: { id: string } | null }) => void>(),
 		dragOvers: new Map<string, (event: DragOverTestEvent) => void>(),
 		dragStarts: new Map<string, (event: { active: { id: string } }) => void>(),
+		footerGetMock: vi.fn(),
 		getMock: vi.fn(),
 		postMock: vi.fn(),
 		navigateMock: vi.fn(),
@@ -165,7 +167,13 @@ vi.mock("../lib/bridge", async (importOriginal) => {
 });
 
 vi.mock("../lib/api-client", () => ({
-	apiClient: { GET: getMock, POST: postMock },
+	// Footer polls (phones, Claude usage) get their own mock so they never
+	// consume the one-shot agent-catalog responses tests queue on getMock.
+	apiClient: {
+		GET: (path: string, ...rest: unknown[]) =>
+			path === "/api/v1/mobile/devices" || path === "/api/v1/usage/claude" ? footerGetMock(path) : getMock(path, ...rest),
+		POST: postMock,
+	},
 	hasTrustedApiBaseUrl: () => false,
 	apiErrorMessage: (error: unknown) => {
 		if (error instanceof Error) return error.message;
@@ -420,6 +428,11 @@ beforeEach(() => {
 		provisioningProjectIds: new Set(),
 		restartingProjectIds: new Set(),
 	});
+	footerGetMock.mockReset();
+	footerGetMock.mockImplementation(async (path: string) => ({
+		data: path === "/api/v1/mobile/devices" ? { devices: [] } : { state: "signed_out", windows: [], checkedAt: "2026-09-25T12:00:00Z" },
+		error: undefined,
+	}));
 	getMock.mockReset();
 	getMock.mockResolvedValue({
 		data: {
@@ -531,7 +544,6 @@ describe("Sidebar", () => {
 		const footer = document.querySelector('[data-sidebar="footer"]');
 		expect(footer).toHaveClass("border-t", "border-border-strong", "!py-2");
 		expect(screen.getAllByRole("button", { name: "Settings" })[0]).toHaveClass("h-9");
-		expect(screen.getAllByRole("button", { name: "Connect mobile" })[0]).toHaveClass("h-9");
 		expect(footer?.className).not.toContain("--size-center-panel-bottom-inset");
 		expect(footer?.className).not.toContain("--size-center-panel-inset-mac");
 	});
@@ -1902,18 +1914,36 @@ describe("Sidebar", () => {
 		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
-	it("opens the Mobile settings page from the footer", async () => {
+	it("shows a live phone in the footer and opens Mobile settings from it", async () => {
+		footerGetMock.mockImplementation(async (path: string) => ({
+			data: path === "/api/v1/mobile/devices"
+				? { devices: [{ installId: "a", deviceName: "Pixel", live: true, muted: false, notificationsEnabled: true, lastSeenAt: "" }, { installId: "b", deviceName: "Old", live: false, muted: false, notificationsEnabled: true, lastSeenAt: "" }] }
+				: { state: "signed_out", windows: [], checkedAt: "" },
+			error: undefined,
+		}));
 		const user = userEvent.setup();
 		renderSidebar();
-		await user.click((await screen.findAllByRole("button", { name: "Connect mobile" }))[0]);
+		await user.click((await screen.findAllByRole("button", { name: "Pixel" }))[0]);
 		expect(useUiStore.getState().settingsModal).toEqual({ scope: "global", section: "mobile" });
 		expect(navigateMock).not.toHaveBeenCalled();
 	});
 
-	it("always shows Connect mobile", () => {
+	it("hides the phone row until a paired phone is live", async () => {
 		renderSidebar();
+		await waitFor(() => expect(footerGetMock).toHaveBeenCalledWith("/api/v1/mobile/devices"));
+		expect(screen.queryByRole("button", { name: "Connect mobile" })).not.toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: /phone connected/i })).not.toBeInTheDocument();
+	});
 
-		expect(screen.getByRole("button", { name: "Connect mobile" })).toBeVisible();
+	it("shows the Claude session usage meter when the subscription is readable", async () => {
+		footerGetMock.mockImplementation(async (path: string) => ({
+			data: path === "/api/v1/mobile/devices"
+				? { devices: [] }
+				: { state: "available", checkedAt: "", windows: [{ kind: "session", group: "session", usedPercent: 32, severity: "normal" }, { kind: "weekly_all", group: "weekly", usedPercent: 4, severity: "normal" }] },
+			error: undefined,
+		}));
+		renderSidebar();
+		expect(await screen.findByRole("group", { name: "Claude Current session: 32% used" })).toBeInTheDocument();
 	});
 
 	it("opens the command palette when Search is clicked", async () => {
@@ -2302,22 +2332,27 @@ describe("Sidebar", () => {
 		const sessionDot = (title: string) =>
 			screen.getByLabelText(`Open ${title}`).querySelector<HTMLElement>("[data-session-status]");
 
-		// No pull request: the dot falls back to runtime status.
-		expect(sessionDot("idle task")).toHaveClass("bg-status-idle");
-		expect(sessionDot("idle task")).not.toHaveClass("animate-status-pulse");
+		// No pull request: the indicator falls back to runtime status.
+		expect(sessionDot("idle task")).toHaveClass("text-status-idle");
+		expect(sessionDot("idle task")).toHaveAttribute("data-session-indicator", "idle");
 
 		const workingDot = sessionDot("working task");
-		expect(workingDot).toHaveClass("bg-status-working");
-		expect(workingDot).toHaveClass("animate-status-pulse");
+		expect(workingDot).toHaveClass("text-status-working");
+		expect(workingDot).toHaveAttribute("data-session-indicator", "working");
 
-		// The board-section tone stays visible while the pulse says the agent is busy.
-		expect(sessionDot("ci failed task")).toHaveClass("bg-status-needs-you", "animate-status-pulse");
-		expect(sessionDot("review task")).toHaveClass("bg-status-in-review", "animate-status-pulse");
-		expect(sessionDot("ready task")).toHaveClass("bg-status-ready", "animate-status-pulse");
-		expect(sessionDot("merged task")).toHaveClass("bg-status-merged", "animate-status-pulse");
+		// The board-section tone stays visible while the spinner says the agent is busy.
+		for (const [title, tone] of [
+			["ci failed task", "text-status-needs-you"],
+			["review task", "text-status-in-review"],
+			["ready task", "text-status-ready"],
+			["merged task", "text-status-merged"],
+		]) {
+			expect(sessionDot(title)).toHaveClass(tone);
+			expect(sessionDot(title)).toHaveAttribute("data-session-indicator", "working");
+		}
 	});
 
-	it("blinks blue when an idle-section session has working activity", () => {
+	it("spins blue when an idle-section session has working activity", () => {
 		renderSidebar({
 			workspaces: [
 				{
@@ -2338,10 +2373,11 @@ describe("Sidebar", () => {
 		const dot = screen
 			.getByLabelText("Open idle task receiving work")
 			.querySelector<HTMLElement>("[data-session-status]");
-		expect(dot).toHaveClass("bg-status-working", "animate-status-pulse");
+		expect(dot).toHaveClass("text-status-working");
+		expect(dot).toHaveAttribute("data-session-indicator", "working");
 	});
 
-	it("holds the dot still for idle activity and keeps its PR tone", async () => {
+	it("shows a still status icon for idle activity and keeps its PR tone", async () => {
 		renderSidebar({
 			workspaces: [
 				{
@@ -2371,15 +2407,15 @@ describe("Sidebar", () => {
 
 		const idleActivityDot = screen
 			.getByLabelText("Open idle activity task")
-			.querySelector<HTMLElement>("span.rounded-full");
-		const idleDraftDot = screen.getByLabelText("Open idle draft task").querySelector<HTMLElement>("span.rounded-full");
+			.querySelector<HTMLElement>("[data-session-indicator]");
+		const idleDraftDot = screen.getByLabelText("Open idle draft task").querySelector<HTMLElement>("[data-session-indicator]");
 
 		// An idle session with no pull request stays gray; a parked draft keeps
 		// the in-review tone the board gives it, without any motion.
-		expect(idleActivityDot).toHaveClass("bg-status-idle");
-		expect(idleDraftDot).toHaveClass("bg-status-in-review");
-		expect(idleActivityDot).not.toHaveClass("animate-status-pulse");
-		expect(idleDraftDot).not.toHaveClass("animate-status-pulse");
+		expect(idleActivityDot).toHaveClass("text-status-idle");
+		expect(idleDraftDot).toHaveClass("text-status-in-review");
+		expect(idleActivityDot).toHaveAttribute("data-session-indicator", "idle");
+		expect(idleDraftDot).toHaveAttribute("data-session-indicator", "draft");
 	});
 
 	it("keeps runtime activity on the dot while showing switch progress separately", () => {
@@ -2399,8 +2435,8 @@ describe("Sidebar", () => {
 		expect(row).toHaveAccessibleDescription("Switching to Codex");
 		expect(within(row).getByText("Switching to Codex")).toBeInTheDocument();
 		const dot = row.querySelector<HTMLElement>("[data-session-status]");
-		expect(dot).toHaveClass("bg-status-needs-you");
-		expect(dot).not.toHaveClass("animate-status-pulse");
+		expect(dot).toHaveClass("text-status-needs-you");
+		expect(dot).toHaveAttribute("data-session-indicator", "exited");
 	});
 
 	it("shows sessions on load and hides them once collapsed", async () => {
@@ -2858,9 +2894,9 @@ describe("Sidebar", () => {
 		expect(within(readyRow).queryByText(/ready|Nightly/)).not.toBeInTheDocument();
 		expect(readyRow.querySelector(".rounded-full")).toBeNull();
 		expect(screen.queryAllByLabelText("Retry update check")).toHaveLength(0);
-		// Stays above Connect mobile / Settings — not overlaid on them.
-		const connectMobile = screen.getByRole("button", { name: "Connect mobile" });
-		expect(readyRow.compareDocumentPosition(connectMobile) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+		// Stays above Settings — not overlaid on it.
+		const settingsButton = screen.getAllByRole("button", { name: "Settings" })[0];
+		expect(readyRow.compareDocumentPosition(settingsButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 		expect(screen.queryByLabelText(/Hide update/)).not.toBeInTheDocument();
 	});
 

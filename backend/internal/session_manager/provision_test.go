@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -502,6 +504,70 @@ func TestRunPostCreate(t *testing.T) {
 	// A failing command surfaces an error.
 	if err := runPostCreate(context.Background(), workspace, []string{"exit 3"}); err == nil {
 		t.Fatal("expected error from failing post-create command")
+	}
+}
+
+type fakeSetupTerminalOpener struct {
+	err      error
+	calls    int
+	session  domain.SessionID
+	project  domain.ProjectID
+	dir      string
+	commands []string
+}
+
+func (f *fakeSetupTerminalOpener) OpenSetupTerminal(_ context.Context, sessionID domain.SessionID, projectID domain.ProjectID, dir string, commands []string) error {
+	f.calls++
+	f.session, f.project, f.dir, f.commands = sessionID, projectID, dir, commands
+	return f.err
+}
+
+func TestStartPostCreateHandsCommandsToSetupTerminal(t *testing.T) {
+	workspace := t.TempDir()
+	project := domain.ProjectRecord{ID: "esm", Config: domain.ProjectConfig{PostCreate: []string{" mvn install ", "", "touch out.txt"}}}
+	m := New(Deps{})
+	opener := &fakeSetupTerminalOpener{}
+	m.SetSetupTerminalOpener(opener)
+
+	m.startPostCreate(context.Background(), project, "esm-4", workspace)
+	if opener.calls != 1 || opener.session != "esm-4" || opener.project != "esm" || opener.dir != workspace {
+		t.Fatalf("opener call = %+v", opener)
+	}
+	if !reflect.DeepEqual(opener.commands, []string{"mvn install", "touch out.txt"}) {
+		t.Fatalf("commands = %q", opener.commands)
+	}
+	if _, err := os.Stat(filepath.Join(workspace, "out.txt")); !os.IsNotExist(err) {
+		t.Fatal("commands must run in the setup terminal, not the daemon")
+	}
+
+	// Nothing configured: no terminal.
+	m.startPostCreate(context.Background(), domain.ProjectRecord{ID: "esm"}, "esm-5", workspace)
+	if opener.calls != 1 {
+		t.Fatalf("opener called %d times for a project without postCreate", opener.calls)
+	}
+}
+
+func TestStartPostCreateRunsDetachedWhenSetupTerminalUnavailable(t *testing.T) {
+	for name, opener := range map[string]SetupTerminalOpener{
+		"unset":       nil,
+		"open failed": &fakeSetupTerminalOpener{err: errors.New("pty unavailable")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			workspace := t.TempDir()
+			m := New(Deps{})
+			m.SetSetupTerminalOpener(opener)
+			m.startPostCreate(context.Background(), domain.ProjectRecord{Config: domain.ProjectConfig{PostCreate: []string{"echo hi > out.txt"}}}, "esm-4", workspace)
+			deadline := time.Now().Add(5 * time.Second)
+			for {
+				if _, err := os.Stat(filepath.Join(workspace, "out.txt")); err == nil {
+					return
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("detached postCreate never ran")
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		})
 	}
 }
 

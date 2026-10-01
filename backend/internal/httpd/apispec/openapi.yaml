@@ -7880,6 +7880,25 @@ paths:
       summary: Check local machine readiness (git, tmux, agent harness, gh)
       tags:
       - system
+  /api/v1/usage/claude:
+    get:
+      operationId: getClaudeUsage
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClaudeUsageResponse'
+          description: OK
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Get the signed-in Claude subscription's rate-limit usage windows
+      tags:
+      - usage
   /api/v1/usage/sessions:
     get:
       operationId: listCompactSessionUsage
@@ -8569,6 +8588,55 @@ components:
       - prs
       - branchChanged
       - takenOverFrom
+      type: object
+    ClaudeUsageResponse:
+      properties:
+        checkedAt:
+          format: date-time
+          type: string
+        state:
+          enum:
+          - available
+          - signed_out
+          - unavailable
+          type: string
+        windows:
+          items:
+            $ref: '#/components/schemas/ClaudeUsageWindowResponse'
+          type: array
+      required:
+      - state
+      - windows
+      - checkedAt
+      type: object
+    ClaudeUsageWindowResponse:
+      properties:
+        group:
+          description: Provider limit group, e.g. session or weekly.
+          type: string
+        kind:
+          description: Provider limit kind, e.g. session, weekly_all, weekly_scoped.
+          type: string
+        model:
+          description: Model display name for model-scoped limits.
+          type: string
+        resetsAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        severity:
+          description: Provider severity, e.g. normal.
+          type: string
+        usedPercent:
+          format: double
+          minimum: 0
+          type: number
+      required:
+      - kind
+      - group
+      - usedPercent
+      - severity
       type: object
     CleanupSessionsResponse:
       properties:

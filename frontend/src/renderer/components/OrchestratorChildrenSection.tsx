@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useOrchestratorChildren, type OrchestratorChildView } from "../hooks/useOrchestratorChildren";
 import { cn } from "../lib/utils";
-import { getSessionStatusDotView, getSessionStatusView } from "../lib/session-presentation";
+import { getSessionStatusView } from "../lib/session-presentation";
+import { SessionStatusIcon } from "./SessionStatusIcon";
 import { captureRendererEvent } from "../lib/telemetry";
 import type { PullRequestFacts, WorkspaceSession } from "../types/workspace";
 import { AgentAvatar } from "./AgentAvatar";
@@ -66,7 +67,6 @@ export function OrchestratorChildrenSection({ session }: { session: WorkspaceSes
 
 function ChildRow({ child, onOpen }: { child: OrchestratorChildView; onOpen: () => void }) {
 	const { t } = useTranslation();
-	const dot = getSessionStatusDotView(child);
 	const statusLabel = getSessionStatusView(child.status, t).label;
 	return (
 		<div
@@ -81,11 +81,7 @@ function ChildRow({ child, onOpen }: { child: OrchestratorChildView; onOpen: () 
 				onClick={onOpen}
 				type="button"
 			>
-				<span
-					aria-hidden="true"
-					className={cn("size-2 shrink-0 rounded-full", dot.className, dot.breathe && "animate-status-pulse")}
-					data-session-status={child.status}
-				/>
+				<SessionStatusIcon session={child} />
 				<AgentAvatar className="size-4 shrink-0" decorative provider={child.provider} />
 				<span className="min-w-0 flex-1 truncate text-xs">{child.title}</span>
 				<span className="shrink-0 text-2xs text-settings-muted">{statusLabel}</span>

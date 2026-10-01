@@ -1586,6 +1586,24 @@ type ListCompactSessionUsageResponse struct {
 	Sessions []CompactSessionUsageResponse `json:"sessions"`
 }
 
+// ClaudeUsageWindowResponse is one rate-limit window of the signed-in Claude
+// subscription.
+type ClaudeUsageWindowResponse struct {
+	Kind        string     `json:"kind" description:"Provider limit kind, e.g. session, weekly_all, weekly_scoped."`
+	Group       string     `json:"group" description:"Provider limit group, e.g. session or weekly."`
+	Model       string     `json:"model,omitempty" description:"Model display name for model-scoped limits."`
+	UsedPercent float64    `json:"usedPercent" minimum:"0"`
+	Severity    string     `json:"severity" description:"Provider severity, e.g. normal."`
+	ResetsAt    *time.Time `json:"resetsAt,omitempty"`
+}
+
+// ClaudeUsageResponse is GET /api/v1/usage/claude.
+type ClaudeUsageResponse struct {
+	State     string                      `json:"state" enum:"available,signed_out,unavailable"`
+	Windows   []ClaudeUsageWindowResponse `json:"windows"`
+	CheckedAt time.Time                   `json:"checkedAt"`
+}
+
 // UsageTotalsResponse is the canonical telemetry aggregate for one scope.
 //
 // Provider-specific counters are no longer projected here: they live verbatim

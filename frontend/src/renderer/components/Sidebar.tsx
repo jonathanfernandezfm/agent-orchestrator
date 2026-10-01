@@ -69,7 +69,6 @@ import {
 	STANDALONE_PROJECT_KIND,
 	STANDALONE_WORKSPACE_ID,
 } from "../types/workspace";
-import { getSessionStatusDotView } from "../lib/session-presentation";
 import { deriveSessionAgentSwitchPresentation } from "../lib/agent-switch-presentation";
 import { aoBridge } from "../lib/bridge";
 import { useCommandPaletteEnabled } from "../hooks/useCommandPaletteEnabled";
@@ -121,11 +120,14 @@ import { OrchestratorIcon } from "./icons";
 import { Badge } from "./ui/badge";
 import aoLogo from "../../../assets/ao-logo.svg";
 import { cn } from "../lib/utils";
+import { SessionStatusIcon } from "./SessionStatusIcon";
 import { useUiStore } from "../stores/ui-store";
 import { useKeybindingsStore } from "../stores/keybindings-store";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CreateProjectFlow, type CloneProjectInput, type CreateProjectInput } from "./CreateProjectFlow";
 import { ResizeHandle } from "./ResizeHandle";
+import { ClaudeUsageMeter } from "./ClaudeUsageMeter";
+import { fetchDevices, mobileDevicesQueryKey } from "./settings/MobileDevicesSection";
 import { NAV_ROW_HIGHLIGHT_HOST_CLASS, NavRowHighlight } from "./NavRowHighlight";
 import { isMacPlatform } from "../lib/platform";
 import { useCloudSession } from "../lib/cloud-session";
@@ -487,28 +489,6 @@ function useSelection() {
 		goProject,
 		goSession,
 	}), [goAllSessions, goConnectMobile, goGlobalSettings, goHome, goProject, goSession, goSettings, params.projectId, params.sessionId, pathname]);
-}
-
-// Colour tracks the session's board section, preserving SCM state while the
-// agent runs; motion stays on raw agent activity. A no-PR idle session turns
-// blue when it starts working. See getSessionStatusDotView for the lane mapping.
-function SessionStatusDot({ session }: { session: WorkspaceSession }) {
-	const dot = getSessionStatusDotView(session);
-	return (
-		<span
-			aria-hidden="true"
-			className="relative z-[1] inline-flex shrink-0 items-center justify-center px-1.5"
-		>
-			<span
-				className={cn(
-					"size-2 rounded-full",
-					dot.className,
-					dot.breathe && "animate-status-pulse",
-				)}
-				data-session-status={session.status}
-			/>
-		</span>
-	);
 }
 
 export {
@@ -1037,8 +1017,8 @@ export function Sidebar({
 			</SidebarContent>
 
 			{/* Footer — Settings opens the global settings page directly.
-			    Footer rows share NAV_ROW height so Settings, Connect mobile,
-			    and account actions line up. Bottom spacing stays inside the
+			    Footer rows share NAV_ROW height so Settings, the connected-phone
+			    row, and account actions line up. Bottom spacing stays inside the
 			    footer so there is no empty strip beneath the final action. */}
 			<SidebarFooter
 				className="relative mt-auto gap-0 overflow-hidden border-t border-border-strong px-2 !py-2 transition-[padding] duration-200 ease-linear group-data-[collapsible=icon]:min-h-20 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:border-t-0 group-data-[collapsible=icon]:overflow-visible group-data-[collapsible=icon]:px-1.5 group-data-[collapsible=icon]:!pb-2 group-data-[collapsible=icon]:!pt-1.5"
@@ -1055,6 +1035,7 @@ export function Sidebar({
 					hidden={isCollapsed}
 					className="sidebar-expanded-chrome relative flex w-full min-w-46.5 flex-col gap-0.5"
 				>
+					<ClaudeUsageMeter tabIndex={isCollapsed ? -1 : 0} />
 					<UpdateStatusRow
 						availableDismissed={updateDismissal.dismissed}
 						onDismissAvailable={updateDismissal.dismiss}
@@ -1069,19 +1050,7 @@ export function Sidebar({
 						status={updateStatus}
 						tabIndex={isCollapsed ? -1 : 0}
 					/>
-					<button
-						aria-label={t("settings.connectMobile")}
-						className={FOOTER_NAV_BUTTON_CLASS}
-						onClick={() => selection.goConnectMobile()}
-						tabIndex={isCollapsed ? -1 : 0}
-						type="button"
-					>
-						<NavRowHighlight />
-						<span className="relative z-[1] flex min-w-0 flex-1 items-center gap-2.5 [&_svg]:size-icon-md [&_svg]:shrink-0">
-							<Smartphone aria-hidden="true" />
-							<span className="tracking-tight">{t("settings.connectMobile")}</span>
-						</span>
-					</button>
+					<ConnectedPhoneRow onClick={selection.goConnectMobile} tabIndex={isCollapsed ? -1 : 0} />
 					<button
 						aria-label={t("shell.settings")}
 						className={FOOTER_NAV_BUTTON_CLASS}
@@ -1108,23 +1077,7 @@ export function Sidebar({
 					/>
 					<CloudSignInRailButton tabIndex={isCollapsed ? 0 : -1} />
 					<CloudAccountRailButton tabIndex={isCollapsed ? 0 : -1} />
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<button
-								aria-label={t("settings.connectMobile")}
-								className={FOOTER_RAIL_BUTTON_CLASS}
-								onClick={() => selection.goConnectMobile()}
-								tabIndex={isCollapsed ? 0 : -1}
-								type="button"
-							>
-								<NavRowHighlight />
-								<span className="relative z-[1] grid place-items-center [&_svg]:size-icon-base">
-									<Smartphone aria-hidden="true" />
-								</span>
-							</button>
-						</TooltipTrigger>
-						<TooltipContent side="right">{t("settings.connectMobile")}</TooltipContent>
-					</Tooltip>
+					<ConnectedPhoneRailButton onClick={selection.goConnectMobile} tabIndex={isCollapsed ? 0 : -1} />
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<button
@@ -2097,7 +2050,7 @@ function SessionRow({
 					data-session-row=""
 				>
 					<NavRowHighlight active={active} />
-					<SessionStatusDot session={session} />
+					<SessionStatusIcon className="relative z-[1] mx-0.5" session={session} />
 					<input
 						aria-label={t("shell.renameSession", { title: session.title })}
 						autoFocus
@@ -2190,7 +2143,7 @@ function SessionRow({
 							ref={reorder?.setActivatorNodeRef}
 							type="button"
 						>
-							<SessionStatusDot session={session} />
+							<SessionStatusIcon className="relative z-[1] mx-0.5" session={session} />
 							<span className="flex min-w-0 flex-1 items-center gap-1.5">
 								<span
 									className={cn(
@@ -2399,6 +2352,54 @@ function CloudSignInRailButton({ tabIndex }: { tabIndex: number }) {
 				</button>
 			</TooltipTrigger>
 			<TooltipContent side="right">{t("shell.signInToAOCloud")}</TooltipContent>
+		</Tooltip>
+	);
+}
+
+// Connected phones: the footer shows a row only while a paired phone has the
+// app open; pairing itself lives in Settings → Connect mobile.
+function useLivePhones() {
+	const { data } = useQuery({ queryKey: mobileDevicesQueryKey, queryFn: fetchDevices, refetchInterval: 10_000 });
+	return data?.filter((device) => device.live) ?? [];
+}
+
+function useLivePhonesLabel(): string | null {
+	const { t } = useTranslation();
+	const phones = useLivePhones();
+	if (phones.length === 0) return null;
+	if (phones.length > 1) return t("shell.phonesConnected", { count: phones.length });
+	return phones[0].deviceName?.trim() || t("shell.phoneConnected");
+}
+
+function ConnectedPhoneRow({ onClick, tabIndex }: { onClick: () => void; tabIndex: number }) {
+	const label = useLivePhonesLabel();
+	if (!label) return null;
+	return (
+		<button aria-label={label} className={FOOTER_NAV_BUTTON_CLASS} onClick={onClick} tabIndex={tabIndex} type="button">
+			<NavRowHighlight />
+			<span className="relative z-[1] flex min-w-0 flex-1 items-center gap-2.5 [&_svg]:size-icon-md [&_svg]:shrink-0">
+				<Smartphone aria-hidden="true" />
+				<span className="min-w-0 flex-1 truncate tracking-tight">{label}</span>
+				<span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-success" />
+			</span>
+		</button>
+	);
+}
+
+function ConnectedPhoneRailButton({ onClick, tabIndex }: { onClick: () => void; tabIndex: number }) {
+	const label = useLivePhonesLabel();
+	if (!label) return null;
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button aria-label={label} className={FOOTER_RAIL_BUTTON_CLASS} onClick={onClick} tabIndex={tabIndex} type="button">
+					<NavRowHighlight />
+					<span className="relative z-[1] grid place-items-center [&_svg]:size-icon-base">
+						<Smartphone aria-hidden="true" />
+					</span>
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="right">{label}</TooltipContent>
 		</Tooltip>
 	);
 }

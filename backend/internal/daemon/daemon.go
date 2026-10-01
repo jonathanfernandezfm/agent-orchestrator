@@ -641,6 +641,7 @@ func Run() error {
 	// worktree is torn down (shellTermSvc cannot exist before sessMgr does; see
 	// SetShellTerminalCloser).
 	sessMgr.SetShellTerminalCloser(shellTermSvc)
+	sessMgr.SetSetupTerminalOpener(shellTermSvc)
 	var (
 		usageCollector *usagesvc.Collector
 		usagePipeline  *usagepipeline.Pipeline
@@ -874,6 +875,7 @@ func Run() error {
 		Activity:           lcStack.LCM,
 		UsageHooks:         usageCollector,
 		UsageSummary:       usagesvc.NewSummaryReader(store),
+		ClaudeUsage:        claudecodeagent.NewUsageReader(),
 		Telemetry:          telemetrySink,
 		Mobile:             mc,
 		DevImport: devimportsvc.New(devimportsvc.Deps{

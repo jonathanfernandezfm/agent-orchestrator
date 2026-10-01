@@ -25,6 +25,7 @@ import { useSettings } from "../hooks/useSettings";
 import { useCloudCp } from "../hooks/useCloudCp";
 import { useCloudOrg } from "../hooks/useCloudOrg";
 import { useProviderConnections } from "../hooks/useProviderConnections";
+import { shellTerminalsQueryKey } from "../hooks/useShellTerminals";
 import { cloudAgentInfos } from "../lib/cloud-agents";
 import {
 	buildRankedAgentOptions,
@@ -599,6 +600,8 @@ export function TaskComposer({
 				agentDrafts[selectedAgent] = preference;
 				rememberTaskComposerPreference(preferenceContext, selectedAgent, preference);
 			}
+			// The daemon opens a Setup tab for project postCreate commands before replying.
+			void queryClient.invalidateQueries({ queryKey: shellTerminalsQueryKey });
 			onCreated(sessionId);
 		} catch (err) {
 			const canBypassApprovals =
